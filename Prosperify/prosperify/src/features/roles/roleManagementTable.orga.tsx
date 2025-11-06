@@ -15,7 +15,8 @@ const RoleManagementTable: React.FC = () => {
   const [success, setSuccess] = useState<string | null>(null);
 
   // ✅ React Query hooks
-  const { data: roles = [], isLoading, error } = useRoles();
+  const { data, isLoading, error } = useRoles();
+  const roles = data?.items ?? [];
   const createRole = useCreateRole();
   const deleteRole = useDeleteRole();
 

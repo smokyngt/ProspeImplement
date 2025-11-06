@@ -1,25 +1,20 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { prosperify } from '@/core/ProsperifyClient';
+import type { AssistantSettings } from '@/features/assistant/types';
 
-// ✅ Interface pour les settings
-export interface AssistantSettings {
-  instructions: string;
-  temperature: number;
-  precision: number;
-  notifications: boolean;
-  externalSources: boolean;
-}
+export const assistantKeys = {
+  settings: (id: string) => ['assistants', id, 'settings'] as const,
+  detail: (id: string) => ['assistants', id] as const,
+};
 
 /**
- * Hook pour récupérer les settings d'un assistant
+ * Hook pour récupérer les settings d'un assistant.
  */
 export function useAssistantSettings(assistantId: string, enabled: boolean = true) {
   return useQuery({
-    queryKey: ['assistants', assistantId, 'settings'],
+    queryKey: assistantKeys.settings(assistantId),
     queryFn: async () => {
-      // ✅ Utilise l'instance globale prosperify
-      const res = await prosperify.assistants.getV1Assistants(assistantId);
-
+      const res = await prosperify.assistants.getV1Assistants(assistantId); // ✅ updated: direct SDK call
       const metadata = res?.data?.assistant?.metadata || {};
       const descriptionData = res?.data?.assistant?.description;
 
@@ -28,14 +23,13 @@ export function useAssistantSettings(assistantId: string, enabled: boolean = tru
         try {
           parsedMetadata = JSON.parse(descriptionData);
         } catch {
-          // Si description n'est pas JSON, utiliser comme instructions
           return {
             instructions: descriptionData,
             temperature: 0.5,
             precision: 0.5,
             notifications: false,
             externalSources: false,
-          } as AssistantSettings;
+          } satisfies AssistantSettings;
         }
       }
 
@@ -45,45 +39,27 @@ export function useAssistantSettings(assistantId: string, enabled: boolean = tru
         precision: parsedMetadata.precision || 0.5,
         notifications: parsedMetadata.notifications || false,
         externalSources: parsedMetadata.externalSources || false,
-      } as AssistantSettings;
+      } satisfies AssistantSettings;
     },
-    enabled: !!assistantId && enabled,
-    staleTime: 5 * 60 * 1000, // Cache 5 min
+    enabled: Boolean(assistantId) && enabled,
+    staleTime: 5 * 60 * 1000,
   });
 }
 
 /**
- * Hook pour mettre à jour les settings d'un assistant
+ * Hook pour mettre à jour les settings d'un assistant.
  */
 export function useUpdateAssistantSettings(assistantId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (settings: AssistantSettings) => {
-      // ✅ Utilise l'instance globale prosperify
-      const settingsData = JSON.stringify({
-        instructions: settings.instructions,
-        temperature: settings.temperature,
-        precision: settings.precision,
-        notifications: settings.notifications,
-        externalSources: settings.externalSources,
-      });
-
-      await prosperify.assistants.putV1Assistants(assistantId, {
-        description: settingsData,
-      });
-
-      return settings;
-    },
-    onSuccess: (updatedSettings) => {
-      // ✅ Update optimiste du cache
-      queryClient.setQueryData<AssistantSettings>(
-        ['assistants', assistantId, 'settings'],
-        updatedSettings
-      );
-
-      // ✅ Invalider aussi les autres caches liés
-      queryClient.invalidateQueries({ queryKey: ['assistants', assistantId] });
+    mutationFn: (settings: AssistantSettings) =>
+      prosperify.assistants.putV1Assistants(assistantId, { // ✅ updated: direct SDK call
+        description: JSON.stringify(settings),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: assistantKeys.settings(assistantId) });
+      queryClient.invalidateQueries({ queryKey: assistantKeys.detail(assistantId) });
     },
   });
 }

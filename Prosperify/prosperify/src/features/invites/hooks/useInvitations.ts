@@ -1,55 +1,68 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { prosperify } from '@/core/ProsperifyClient';
+import type {
+  InvitationCreatePayload,
+  InvitationListParams,
+} from '@/features/invites/types';
 
-export interface InvitationCreatePayload {
-  expiresIn?: number;
-  maxUsage?: number;
-  roles?: string[];
-}
+// @deprecated Préférez importer les types depuis '@/features/invites/types'.
+export type { InvitationCreatePayload, InvitationListParams } from '@/features/invites/types';
 
-export function useInvitations(params?: { limit?: number; order?: 'asc' | 'desc'; page?: number }) {
-  const { limit, order, page } = params ?? {};
+const invitationKeys = {
+  all: ['invitations'] as const,
+  list: (params: InvitationListParams = {}) => ['invitations', 'list', params] as const,
+};
 
+/**
+ * Récupère la liste des invitations en cours.
+ */
+export function useInvitations(params: InvitationListParams = {}) {
   return useQuery({
-    queryKey: ['invitations', 'list', limit ?? null, order ?? null, page ?? null],
+    queryKey: invitationKeys.list(params),
     queryFn: async () => {
-      const res = await prosperify.invitations.postV1InvitationsList({
-        ...(limit !== undefined ? { limit } : {}),
-        ...(order ? { order } : {}),
-        ...(page !== undefined ? { page } : {}),
-      });
-      return (res?.data?.invitations || []) as any[];
+      const response = await prosperify.invitations.postV1InvitationsList(params); // ✅ updated: direct SDK call
+      return {
+        items: response.data?.invitations ?? [],
+        eventMessage: response.eventMessage,
+      };
     },
     staleTime: 5 * 60 * 1000,
   });
 }
 
+/**
+ * Crée une invitation et ré-invalide la liste.
+ */
 export function useCreateInvitation() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: InvitationCreatePayload) => {
-      return prosperify.invitations.postV1InvitationsNew(payload);
-    },
+    mutationFn: (payload: InvitationCreatePayload) =>
+      prosperify.invitations.postV1InvitationsNew(payload), // ✅ updated: direct SDK call
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['invitations'] });
+      qc.invalidateQueries({ queryKey: invitationKeys.all });
     },
   });
 }
 
+/**
+ * Supprime une invitation existante.
+ */
 export function useDeleteInvitation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      return prosperify.invitations.deleteV1Invitations(id);
+      await prosperify.invitations.deleteV1Invitations(id); // ✅ updated: direct SDK call
+      return id;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['invitations'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: invitationKeys.all }),
   });
 }
 
+/**
+ * Accepte une invitation publique.
+ */
 export function useAcceptInvitation() {
   return useMutation({
-    mutationFn: async (id: string) => {
-      return prosperify.invitations.getV1InvitationsAccept(id);
-    },
+    mutationFn: (id: string) => prosperify.invitations.getV1InvitationsAccept(id), // ✅ updated: direct SDK call
   });
 }

@@ -179,10 +179,12 @@ export class ProsperifyClient {
       import { prosperify } from '@/core/ProsperifyClient'
 ------------------------------------------------------------------ */
 
-const token = localStorage.getItem('access_token');
-const apiKey = import.meta.env['VITE_API_KEY'];
+const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : undefined;
+const storedApiKey = typeof window !== 'undefined' ? localStorage.getItem('api_key') : undefined;
+const apiKey = storedApiKey ?? import.meta.env['VITE_API_KEY'];
 const baseUrl = import.meta.env['VITE_API_URL'] || 'https://api.prosperify.app';
-const lang = (localStorage.getItem('lang') as Lang) || 'fr';
+const lang =
+  (typeof window !== 'undefined' && (localStorage.getItem('lang') as Lang)) || 'fr';
 
 export const prosperify = new ProsperifyClient({
   ...(token && { token }),
