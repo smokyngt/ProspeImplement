@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { prosperify } from '@/core/ProsperifyClient';
+import useAuthStore from '@/features/auth/store/AuthStore';
 
 // ════════════════════════════════════════════════════════════════
 // 📋 QUERIES (Récupération de données)
@@ -16,10 +17,17 @@ export function useUsers(params?: {
   page?: number;
   roleId?: string;
 }) {
+  const { limit, order, page, roleId } = params ?? {};
+
   return useQuery({
-    queryKey: ['users', params],
+    queryKey: ['users', 'list', limit ?? null, order ?? null, page ?? null, roleId ?? null],
     queryFn: async () => {
-      const res = await prosperify.users.postV1UsersList(params);
+      const res = await prosperify.users.postV1UsersList({
+        ...(limit !== undefined ? { limit } : {}),
+        ...(order ? { order } : {}),
+        ...(page !== undefined ? { page } : {}),
+        ...(roleId ? { roleId } : {}),
+      });
       return {
         users: res?.data?.users || [],
         total: res?.data?.total || 0,
@@ -258,6 +266,7 @@ export function useRemoveUserRole() {
  */
 export function useLogin() {
   const queryClient = useQueryClient();
+  const setAuthData = useAuthStore((state) => state.setAuthData);
 
   return useMutation({
     mutationFn: async (credentials: { email: string; password: string }) => {
@@ -270,17 +279,13 @@ export function useLogin() {
       };
     },
     onSuccess: (data) => {
-      // ✅ Sauvegarde automatique des tokens
-      if (data?.accessToken) {
-        localStorage.setItem('access_token', data.accessToken);
-        prosperify.setToken(data.accessToken);
-      }
-      if (data?.refreshToken) {
-        localStorage.setItem('refresh_token', data.refreshToken);
+      if (data?.user && data?.accessToken) {
+        setAuthData(data.user, data.accessToken, data.refreshToken ?? null);
       }
 
-      // ✅ Invalide toutes les queries pour forcer un refresh avec le nouveau token
-      queryClient.invalidateQueries();
+      // ✅ Invalide les queries dépendantes de l'utilisateur connecté
+      queryClient.invalidateQueries({ queryKey: ['current-user'] });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
 
       console.log('✅ Login successful:', data.eventMessage);
     },
@@ -298,16 +303,14 @@ export function useLogin() {
  */
 export function useLogout() {
   const queryClient = useQueryClient();
+  const logout = useAuthStore.getState().logout;
 
-  return () => {
-    // ✅ Supprime les tokens
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    prosperify.setToken('');
+  return async () => {
+    await logout();
 
     // ✅ Vide tout le cache React Query
     queryClient.clear();
 
     console.log('✅ Logged out successfully');
   };
-} 
+}

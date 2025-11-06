@@ -22,11 +22,13 @@ export interface MetricsListParams {
 }
 
 // ✅ Hook générique pour toutes les métriques
-export function useMetrics(params: MetricsListParams = {}) {
+export function useMetrics(params?: MetricsListParams) {
+  const serializedParams = params ? JSON.stringify(params) : 'default';
+
   return useQuery({
-    queryKey: ['metrics', params],
+    queryKey: ['metrics', 'list', serializedParams],
     queryFn: async () => {
-      const res = await prosperify.metrics.postV1MetricsList(params);
+      const res = await prosperify.metrics.postV1MetricsList(params ?? {});
       return {
         metrics: res?.data?.metrics || [],
         total: res?.data?.total || 0,
@@ -60,8 +62,10 @@ export function useApiKeyMetrics(
     archived?: boolean;
   }
 ) {
+  const serializedOptions = options ? JSON.stringify(options) : 'default';
+
   return useQuery({
-    queryKey: ['metrics', 'apiKey', apiKeyId, options],
+    queryKey: ['metrics', 'apiKey', apiKeyId ?? null, serializedOptions],
     queryFn: async () => {
       const res = await prosperify.metrics.postV1MetricsList({
         resourceType: 'apiKey',
@@ -89,8 +93,10 @@ export function useAssistantMetrics(
     archived?: boolean;
   }
 ) {
+  const serializedOptions = options ? JSON.stringify(options) : 'default';
+
   return useQuery({
-    queryKey: ['metrics', 'assistant', assistantId, options],
+    queryKey: ['metrics', 'assistant', assistantId ?? null, serializedOptions],
     queryFn: async () => {
       const res = await prosperify.metrics.postV1MetricsList({
         resourceType: 'assistant',
@@ -118,8 +124,10 @@ export function useMessageMetrics(
     limit?: number;
   }
 ) {
+  const serializedOptions = options ? JSON.stringify(options) : 'default';
+
   return useQuery({
-    queryKey: ['metrics', 'message', messageId, options],
+    queryKey: ['metrics', 'message', messageId ?? null, serializedOptions],
     queryFn: async () => {
       const res = await prosperify.metrics.postV1MetricsList({
         resourceType: 'message',
@@ -146,8 +154,10 @@ export function useThreadMetrics(
     limit?: number;
   }
 ) {
+  const serializedOptions = options ? JSON.stringify(options) : 'default';
+
   return useQuery({
-    queryKey: ['metrics', 'thread', threadId, options],
+    queryKey: ['metrics', 'thread', threadId ?? null, serializedOptions],
     queryFn: async () => {
       const res = await prosperify.metrics.postV1MetricsList({
         resourceType: 'thread',
@@ -174,8 +184,10 @@ export function useFileMetrics(
     archived?: boolean;
   }
 ) {
+  const serializedOptions = options ? JSON.stringify(options) : 'default';
+
   return useQuery({
-    queryKey: ['metrics', 'file', fileId, options],
+    queryKey: ['metrics', 'file', fileId ?? null, serializedOptions],
     queryFn: async () => {
       const res = await prosperify.metrics.postV1MetricsList({
         resourceType: 'file',
@@ -202,8 +214,10 @@ export function useMemberMetrics(
     limit?: number;
   }
 ) {
+  const serializedOptions = options ? JSON.stringify(options) : 'default';
+
   return useQuery({
-    queryKey: ['metrics', 'member', memberId, options],
+    queryKey: ['metrics', 'member', memberId ?? null, serializedOptions],
     queryFn: async () => {
       const res = await prosperify.metrics.postV1MetricsList({
         resourceType: 'member',
@@ -254,8 +268,10 @@ export function useMetricsSummary(
     organizationId?: string;
   }
 ) {
+  const serializedOptions = options ? JSON.stringify(options) : 'default';
+
   return useQuery({
-    queryKey: ['metrics', 'summary', options],
+    queryKey: ['metrics', 'summary', serializedOptions],
     queryFn: async () => {
       const types: MetricsListParams['resourceType'][] = [
         'apiKey',

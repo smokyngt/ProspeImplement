@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { ProsperifyClient } from '@/core/ProsperifyClient';
+import { prosperify } from '@/core/ProsperifyClient';
 import useAuthStore from '@/features/auth/store/AuthStore';
 
 export interface Assistant {
@@ -31,13 +31,10 @@ const useAssistantStore = create<AssistantState>((set) => ({
       const token = useAuthStore.getState().token;
       if (!token) throw new Error('Not authenticated');
 
-      const client = new ProsperifyClient({
-        baseUrl: import.meta.env['VITE_API_BASE_URL'],
-        token,
-      });
+      prosperify.setToken(token);
 
       // ✅ Adapter selon votre endpoint réel
-      const res = await client.assistants.postV1AssistantsList();
+      const res = await prosperify.assistants.postV1AssistantsList();
       const assistants = res.data?.assistants || [];
 
       set({ assistants, isLoading: false });
