@@ -17,7 +17,7 @@ interface AuthState {
   isAuthenticated: boolean;
   
   // ✅ Nouvelle méthode pour set les données depuis React Query
-  setAuthData: (user: User, token: string, refreshToken: string) => void;
+  setAuthData: (user: User, token: string, refreshToken?: string | null) => void;
   
   logout: () => Promise<void>;
   refreshAccessToken: () => Promise<void>;
@@ -36,8 +36,20 @@ const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
 
       // ✅ Set les données d'auth depuis React Query
-      setAuthData: (user: User, token: string, refreshToken: string) => {
-        set({ user, token, refreshToken, isAuthenticated: true });
+      setAuthData: (user: User, token: string, refreshToken?: string | null) => {
+        prosperify.setToken(token);
+        localStorage.setItem('access_token', token);
+        if (refreshToken) {
+          localStorage.setItem('refresh_token', refreshToken);
+        }
+        localStorage.setItem('current_user', JSON.stringify(user));
+
+        set({
+          user,
+          token,
+          refreshToken: refreshToken ?? null,
+          isAuthenticated: true,
+        });
       },
 
       verifyEmail: async (token: string) => {
@@ -89,6 +101,11 @@ const useAuthStore = create<AuthState>()(
           }
         }
 
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('current_user');
+        prosperify.setToken('');
+
         set({
           user: null,
           token: null,
@@ -110,6 +127,12 @@ const useAuthStore = create<AuthState>()(
 
           if (!newToken) {
             throw new Error('Invalid refresh response');
+          }
+
+          prosperify.setToken(newToken);
+          localStorage.setItem('access_token', newToken);
+          if (newRefreshToken) {
+            localStorage.setItem('refresh_token', newRefreshToken);
           }
 
           set({

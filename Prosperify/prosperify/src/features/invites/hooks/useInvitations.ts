@@ -7,11 +7,17 @@ export interface InvitationCreatePayload {
   roles?: string[];
 }
 
-export function useInvitations(params: { limit?: number; order?: 'asc' | 'desc'; page?: number } = {}) {
+export function useInvitations(params?: { limit?: number; order?: 'asc' | 'desc'; page?: number }) {
+  const { limit, order, page } = params ?? {};
+
   return useQuery({
-    queryKey: ['invitations', params],
+    queryKey: ['invitations', 'list', limit ?? null, order ?? null, page ?? null],
     queryFn: async () => {
-      const res = await prosperify.invitations.postV1InvitationsList(params);
+      const res = await prosperify.invitations.postV1InvitationsList({
+        ...(limit !== undefined ? { limit } : {}),
+        ...(order ? { order } : {}),
+        ...(page !== undefined ? { page } : {}),
+      });
       return (res?.data?.invitations || []) as any[];
     },
     staleTime: 5 * 60 * 1000,

@@ -36,11 +36,17 @@ interface FetchRolesParams {
 /**
  * Hook pour récupérer tous les rôles
  */
-export function useRoles(params: FetchRolesParams = {}) {
+export function useRoles(params?: FetchRolesParams) {
+  const { limit, order, page } = params ?? {};
+
   return useQuery({
-    queryKey: ['roles', params],
+    queryKey: ['roles', 'list', limit ?? null, order ?? null, page ?? null],
     queryFn: async () => {
-      const res = await prosperify.roles.postV1RolesList(params);
+      const res = await prosperify.roles.postV1RolesList({
+        ...(limit !== undefined ? { limit } : {}),
+        ...(order ? { order } : {}),
+        ...(page !== undefined ? { page } : {}),
+      });
       return (res?.data?.roles || []) as Role[];
     },
     staleTime: 5 * 60 * 1000, // 5 minutes

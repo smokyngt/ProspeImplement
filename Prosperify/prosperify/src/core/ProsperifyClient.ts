@@ -61,9 +61,9 @@ export class ProsperifyClient {
     // Configure OpenAPI
     OpenAPI.BASE = baseUrl;
     OpenAPI.TOKEN = async () => this.token || '';
-    OpenAPI.HEADERS = {
+    OpenAPI.HEADERS = async () => ({
       'x-api-key': this.apiKey || '',
-    };
+    });
 
     // Création des services proxy
     this.apiKeys = this.wrapService(ApiKeysService);
@@ -154,6 +154,9 @@ export class ProsperifyClient {
   /** 🔑 Met à jour dynamiquement la clé API */
   setApiKey(apiKey: string) {
     this.apiKey = apiKey;
+    OpenAPI.HEADERS = async () => ({
+      'x-api-key': this.apiKey || '',
+    });
   }
 
   /** ⚙️ Change dynamiquement l’URL du backend */

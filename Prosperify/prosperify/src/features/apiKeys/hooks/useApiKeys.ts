@@ -31,11 +31,19 @@ interface FetchApiKeysParams {
 /**
  * Hook pour récupérer toutes les API Keys
  */
-export function useApiKeys(params: FetchApiKeysParams = {}) {
+export function useApiKeys(params?: FetchApiKeysParams) {
+  const { limit, order, page, date } = params ?? {};
+  const serializedDate = date ? JSON.stringify(date) : 'no-date';
+
   return useQuery({
-    queryKey: ['apiKeys', params],
+    queryKey: ['apiKeys', 'list', limit ?? null, order ?? null, page ?? null, serializedDate],
     queryFn: async () => {
-      const res = await prosperify.apiKeys.postV1KeysList(params);
+      const res = await prosperify.apiKeys.postV1KeysList({
+        ...(limit !== undefined ? { limit } : {}),
+        ...(order ? { order } : {}),
+        ...(page !== undefined ? { page } : {}),
+        ...(date ? { date } : {}),
+      });
       return (res?.data?.apiKeys || []) as ApiKey[];
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
