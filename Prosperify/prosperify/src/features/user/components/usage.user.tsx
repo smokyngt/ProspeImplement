@@ -1,6 +1,6 @@
 import React from 'react'
 
-const Usage :React.FC = () => {
+const UserUsage : React.FC = () => {
   return (
         <>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
@@ -86,4 +86,4 @@ const Usage :React.FC = () => {
   )
 }
 
-export default Usage
+export default UserUsage

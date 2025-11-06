@@ -23,13 +23,13 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   error,
   onCloseError,
 }) => {
-  const content = children ?? (useOutlet ? <Outlet /> : null);
+  const content = useOutlet ? <Outlet /> : children; 
 
   return (
     <>
       {sidebar}
       <div className={`w-full lg:ps-64 ${center ? '' : ''}`}>
-        <div className={`${paddingClassName ?? 'p-4 sm:p-6'} ${center ? `w-full mx-auto ${maxWidthClassName ?? 'max-w-6xl'}` : ''}`}>
+        <div className={`${paddingClassName ?? 'p-4 sm:p-6'} ${center ? `w-full ${maxWidthClassName ?? 'max-w-6xl'}` : ''}`}>
           {error && (
             <div className="fixed top-4 right-4 z-50">
               <AlertError message={error} onClose={onCloseError ?? (() => {})} description={''} />

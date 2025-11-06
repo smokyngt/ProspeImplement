@@ -1,5 +1,5 @@
 import React from 'react'
-import TableLogs from '../components/tableLogs.orga'
+import TableLogs from '../../logs/tableLogs.orga'
 
 const Logs: React.FC = () => {
   return (

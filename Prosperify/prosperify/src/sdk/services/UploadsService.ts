@@ -126,7 +126,7 @@ export class UploadsService {
             path: {
                 'assistantId': assistantId,
             },
-            formData: formData,
+            ...(formData ? { formData } : {}),
             mediaType: 'multipart/form-data',
             errors: {
                 400: `Bad Request - Validation Error`,
@@ -187,7 +187,7 @@ export class UploadsService {
             path: {
                 'assistantId': assistantId,
             },
-            formData: formData,
+            ...(formData ? { formData } : {}),
             mediaType: 'multipart/form-data',
             errors: {
                 400: `Bad Request - Validation Error`,
@@ -248,7 +248,7 @@ export class UploadsService {
             path: {
                 'userId': userId,
             },
-            formData: formData,
+            ...(formData ? { formData } : {}),
             mediaType: 'multipart/form-data',
             errors: {
                 400: `Bad Request - Validation Error`,
@@ -309,7 +309,7 @@ export class UploadsService {
             path: {
                 'organizationId': organizationId,
             },
-            formData: formData,
+            ...(formData ? { formData } : {}),
             mediaType: 'multipart/form-data',
             errors: {
                 400: `Bad Request - Validation Error`,

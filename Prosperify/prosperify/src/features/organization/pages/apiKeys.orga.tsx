@@ -1,5 +1,5 @@
 import React from 'react'
-import TableApiKeys from '../components/tableApiKeys'
+import TableApiKeys from '../../apiKeys/tableApiKeys'
 
 const ApiKeys: React.FC = () => {
   return (

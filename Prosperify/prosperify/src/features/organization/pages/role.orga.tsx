@@ -1,5 +1,5 @@
 import React from 'react'
-import RoleManagementTable from '../components/roleManagementTable.orga'
+import RoleManagementTable from '../../roles/roleManagementTable.orga'
 
 const Role: React.FC = () => {
   return (

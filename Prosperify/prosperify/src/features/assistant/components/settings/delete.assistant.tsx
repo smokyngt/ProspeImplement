@@ -1,11 +1,125 @@
-import React from 'react'
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { prosperify } from "@/core/ProsperifyClient";
+import AlertError from "@/components/ui/base/Alert/alertError";
 
-const DeleteContent: React.FC = () => (
-  <div className="p-4 rounded-lg bg-gray-50">
-    <h3 className="font-semibold text-lg mb-2">Delete Chatbot</h3>
-    <p className="text-sm text-gray-600 mb-4">Delete this chatbot and all of its data. This action cannot be undone.</p>
-    <button onClick={() => console.log('c carré')} className="mt-4 py-2 px-4 bg-red-600 text-white rounded">Delete Chatbot</button>
-  </div>
-)
+interface DeleteContentProps {
+  assistantId: string;
+}
 
-export default DeleteContent
+const DeleteContent: React.FC<DeleteContentProps> = ({ assistantId }) => {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  // ✅ États locaux pour l'UI uniquement
+  const [confirmText, setConfirmText] = useState("");
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  // ✅ React Query mutation pour la suppression
+  const deleteAssistant = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await prosperify.assistants.delete(id);
+      return res;
+    },
+    onSuccess: (res) => {
+      console.log("✅ Assistant supprimé :", res.event?.code);
+
+      // ✅ Invalider les caches liés
+      queryClient.invalidateQueries({ queryKey: ['assistants'] });
+      queryClient.removeQueries({ queryKey: ['assistants', assistantId] });
+
+      // ✅ Redirection après suppression réussie
+      setTimeout(() => {
+        navigate("/dashboard-orga");
+      }, 1000);
+    },
+  });
+
+  // ---------------------------------------------------------------
+  // 🗑️ Fonction de suppression
+  // ---------------------------------------------------------------
+  const handleDelete = async () => {
+    // Validation de la confirmation
+    if (confirmText.toUpperCase() !== "DELETE") {
+      setValidationError('Veuillez taper "DELETE" pour confirmer la suppression.');
+      return;
+    }
+
+    setValidationError(null);
+    await deleteAssistant.mutateAsync(assistantId);
+  };
+
+  // ---------------------------------------------------------------
+  // 🎨 Rendu
+  // ---------------------------------------------------------------
+  return (
+    <div className="p-4 rounded-lg bg-red-50 border border-red-200">
+      {/* Erreur de validation */}
+      {validationError && (
+        <div className="mb-4">
+          <AlertError
+            message={validationError}
+            onClose={() => setValidationError(null)}
+            description=""
+          />
+        </div>
+      )}
+
+      {/* Erreur de mutation React Query */}
+      {deleteAssistant.error && (
+        <div className="mb-4">
+          <AlertError
+            message={(deleteAssistant.error as any)?.message || "Erreur lors de la suppression de l'assistant."}
+            onClose={() => deleteAssistant.reset()}
+            description=""
+          />
+        </div>
+      )}
+
+      <h3 className="font-semibold text-lg text-red-700 mb-2">
+        🗑️ Supprimer le Chatbot
+      </h3>
+      <p className="text-sm text-gray-700 mb-4">
+        Cette action est{" "}
+        <strong className="text-red-600">irréversible</strong>. Toutes les
+        données, conversations et paramètres seront définitivement supprimés.
+      </p>
+
+      {/* ✅ Input de confirmation */}
+      <div className="mb-4">
+        <label className="block text-sm font-semibold text-gray-700 mb-2">
+          Pour confirmer, tapez{" "}
+          <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded font-mono text-xs">
+            DELETE
+          </span>
+        </label>
+        <input
+          type="text"
+          value={confirmText}
+          onChange={(e) => setConfirmText(e.target.value)}
+          placeholder="DELETE"
+          className="border border-red-300 p-2 rounded w-full focus:ring-2 focus:ring-red-500 focus:border-transparent"
+          disabled={deleteAssistant.isPending}
+        />
+      </div>
+
+      <button
+        onClick={handleDelete}
+        disabled={deleteAssistant.isPending || confirmText.toUpperCase() !== "DELETE"}
+        className="py-2 px-4 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
+      >
+        {deleteAssistant.isPending ? (
+          <>
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            Suppression en cours...
+          </>
+        ) : (
+          "Supprimer définitivement"
+        )}
+      </button>
+    </div>
+  );
+};
+
+export default DeleteContent;

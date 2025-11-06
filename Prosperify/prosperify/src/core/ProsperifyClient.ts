@@ -15,21 +15,6 @@ import { UploadsService } from '@/sdk/services/UploadsService';
 import { UsersService } from '@/sdk/services/UsersService';
 import { getEventMessage, getErrorMessage, type Lang } from '@/core/messages';
 
-// Tous les services auto-générés
-export * from '../sdk/services/ApiKeysService';
-export * from '../sdk/services/AssistantsService';
-export * from '../sdk/services/AuthService';
-export * from '../sdk/services/ChatService';
-export * from '../sdk/services/FilesService';
-export * from '../sdk/services/FoldersService';
-export * from '../sdk/services/InvitationsService';
-export * from '../sdk/services/LogsService';
-export * from '../sdk/services/MetricsService';
-export * from '../sdk/services/OrganizationsService';
-export * from '../sdk/services/RolesService';
-export * from '../sdk/services/ThreadsService';
-export * from '../sdk/services/UploadsService';
-export * from '../sdk/services/UsersService';
 /**
  * Client principal Prosperify
  * Gère la configuration OpenAPI (token, apiKey, baseURL, langue)
@@ -41,7 +26,7 @@ export class ProsperifyClient {
   private baseUrl: string;
   private lang: Lang = 'en';
 
-  // Expose tous les services (proxied so we can format responses/messages)
+  // Expose tous les services (proxied)
   public apiKeys: any;
   public assistants: any;
   public auth: any;
@@ -57,29 +42,30 @@ export class ProsperifyClient {
   public uploads: any;
   public users: any;
 
-  constructor({
-    token,
-    apiKey,
-    baseUrl = import.meta.env['VITE_API_URL'] || 'https://api.prosperify.app',
-  }: {
-    token?: string;
-    apiKey?: string;
-    baseUrl?: string;
-    lang?: Lang;
-  }) {
+ constructor({
+  token,
+  apiKey,
+  baseUrl = import.meta.env['VITE_API_URL'] || 'https://api.prosperify.app',
+  lang = 'en',
+}: {
+  token?: string;
+  apiKey?: string;
+  baseUrl?: string;
+  lang?: Lang;
+}) {
     this.token = token;
     this.apiKey = apiKey;
     this.baseUrl = baseUrl;
-    if ((arguments[0] as any)?.lang) this.lang = (arguments[0] as any).lang;
+    this.lang = lang;
 
-    // Configure le SDK auto-généré
+    // Configure OpenAPI
     OpenAPI.BASE = baseUrl;
     OpenAPI.TOKEN = async () => this.token || '';
     OpenAPI.HEADERS = {
       'x-api-key': this.apiKey || '',
     };
 
-    // create proxied service wrappers
+    // Création des services proxy
     this.apiKeys = this.wrapService(ApiKeysService);
     this.assistants = this.wrapService(AssistantsService);
     this.auth = this.wrapService(AuthService);
@@ -112,7 +98,8 @@ export class ProsperifyClient {
   }
 
   private formatError(err: any) {
-    const status = err?.status ?? err?.response?.status ?? err?.statusCode ?? 500;
+    const status =
+      err?.status ?? err?.response?.status ?? err?.statusCode ?? 500;
     return {
       original: err,
       status,
@@ -120,59 +107,42 @@ export class ProsperifyClient {
     };
   }
 
-  /** Wrapper générique qui transforme une classe de service SDK en proxy friendly-methods */
+  /** 🔧 Détecte et mappe toutes les méthodes du service SDK */
   private wrapService(ServiceClass: any) {
-    const methods = Object.keys(ServiceClass).filter(k => typeof ServiceClass[k] === 'function');
+    const methods = Object.getOwnPropertyNames(ServiceClass).filter(
+      (k) => typeof (ServiceClass as any)[k] === 'function'
+    );
 
+    const proxy: any = {};
+
+    for (const method of methods) {
+      proxy[method] = async (...args: any[]) => {
+        try {
+          const res = await (ServiceClass as any)[method](...args);
+          return this.formatResponse(res);
+        } catch (e) {
+          throw this.formatError(e);
+        }
+      };
+    }
+
+    // ✅ Supporte les aliases simples (create, delete, etc.)
     const pickMethod = (name: string) => {
       const key = name.toLowerCase();
-      // scoring heuristics
-      const scores = methods.map((m: string) => {
-        const ml = m.toLowerCase();
-        let score = 0;
-        if (ml.includes(key)) score += 50;
-        if (key === 'create' && /new/.test(ml)) score += 30;
-        if (key === 'get' && ml.startsWith('get')) score += 20;
-        if (key === 'list' && ml.includes('list')) score += 20;
-        if (key === 'update' && (ml.startsWith('put') || ml.includes('update'))) score += 20;
-        if (key === 'delete' && ml.startsWith('delete')) score += 20;
-        if (key === 'upload' && ml.includes('upload')) score += 20;
-        return { m, score };
-      });
-      scores.sort((a, b) => b.score - a.score);
-      return scores[0]?.score ? scores[0].m : null;
+      return (
+        methods.find((m) => m.toLowerCase().includes(key)) ??
+        methods.find((m) => m.toLowerCase().startsWith(key)) ??
+        null
+      );
     };
 
-    return new Proxy({}, {
-      get: (_target, prop: string) => {
-        // if the SDK has a method with the exact prop name, call it
-        if (methods.includes(prop)) {
-          return async (...args: any[]) => {
-            try {
-              const res = await ServiceClass[prop](...args);
-              return this.formatResponse(res);
-            } catch (e) {
-              throw this.formatError(e);
-            }
-          };
-        }
-
-        // attempt to map friendly names to SDK method names (create/get/list/update/delete/upload)
+    return new Proxy(proxy, {
+      get: (target, prop: string) => {
+        if (target[prop]) return target[prop];
         const mapped = pickMethod(prop);
-        if (mapped) {
-          return async (...args: any[]) => {
-            try {
-              const res = await ServiceClass[mapped](...args);
-              return this.formatResponse(res);
-            } catch (e) {
-              throw this.formatError(e);
-            }
-          };
-        }
-
-        // fallback: undefined
+        if (mapped) return target[mapped];
         return undefined;
-      }
+      },
     });
   }
 
@@ -194,9 +164,28 @@ export class ProsperifyClient {
 
   /** 🧠 Gestion simple des erreurs */
   handleError(error: any) {
-    // deprecated: prefer formatError/try-catch on wrapped service calls
     const formatted = this.formatError(error);
-    console.error(`[ProsperifyClient] ${formatted.message || 'Unknown error'}`);
-    throw new Error(formatted.message || 'Unknown error');
+    console.error(`[ProsperifyClient] ${formatted.message}`);
+    throw new Error(formatted.message);
   }
 }
+
+/* ------------------------------------------------------------------
+   ✅ Instance unique globale de ProsperifyClient
+   → Tu peux importer directement `prosperify` n'importe où :
+      import { prosperify } from '@/core/ProsperifyClient'
+------------------------------------------------------------------ */
+
+const token = localStorage.getItem('access_token');
+const apiKey = import.meta.env['VITE_API_KEY'];
+const baseUrl = import.meta.env['VITE_API_URL'] || 'https://api.prosperify.app';
+const lang = (localStorage.getItem('lang') as Lang) || 'fr';
+
+export const prosperify = new ProsperifyClient({
+  ...(token && { token }),
+  ...(apiKey && { apiKey }),
+  baseUrl,
+  lang,
+});
+
+console.log('🧩 ProsperifyClient initialisé →', prosperify);

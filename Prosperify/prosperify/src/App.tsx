@@ -14,14 +14,21 @@ import DashboardUser from './features/user/pages/dashboard.user';
 import DashboardOrga from './features/organization/pages/dashboard.orga';
 
 import TableUsers from './features/organization/components/tableUser.orga';
-import Invite from './features/organization/pages/invite.orga';
-import TableLogs from './features/organization/components/tableLogs.orga';
+import InviteModal from './features/invites/inviteModal.common';
+import TableLogs from './features/logs/tableLogs.orga';
 import OrganizationInput from './features/organization/components/organizationInput.orga';
-import SettingsUser from './features/user/pages/settings/settings.user';
-import CreateAssistantOrga from './features/organization/components/createAssistant.orga';
-import GridAssistantOrganization from './features/organization/components/gridAssitant.orga';
+import SettingsUser from './features/user/pages/settings.user';
+import AssistantsPage from './features/assistant/pages/assistantPage';
+import AssistantsList from './features/assistant/components/assistantList';
 import ApiKeys from './features/organization/pages/apiKeys.orga';
-import RoleManagementTable from './features/organization/components/roleManagementTable.orga';
+import RoleManagementTable from './features/roles/roleManagementTable.orga';
+import MetricsOverview from './features/metrics/metricsEg';
+import UserUsage from './features/user/components/usage.user';
+import UsageAssistant from './features/assistant/components/usage.assistant';
+import UsageOrganization from './features/organization/components/usage.orga';
+
+import Login from './features/auth/pages/login.auth';
+import Register from './features/auth/pages/register.auth';
 
 declare global {
   interface Window {
@@ -43,7 +50,7 @@ const App: React.FC = () => {
 
         {/* User Dashboard (nested) */}
         <Route path="/dashboard-user" element={<DashboardUser />}>
-          <Route path="settings-user" element={<SettingsUser />} />
+          <Route path="settings-user" element={<SettingsUser/>} />
           <Route path="stats" element={<div>Stats</div>} />
         </Route>
         
@@ -63,17 +70,22 @@ const App: React.FC = () => {
 
       {/* Dashboard Orga layout + nested routes */}
         <Route path="/dashboard-orga" element={<DashboardOrga />}>
-          <Route index element={<GridAssistantOrganization />} />
-          <Route path="create-assistant" element={<CreateAssistantOrga />} />
+          <Route index element={<AssistantsList />} />
+          <Route path="create-assistant" element={<AssistantsPage />} />
           <Route path="role" element={<RoleManagementTable />} />
           <Route path="user" element={<TableUsers />} />
-          <Route path="invite" element={<Invite />} />
+          <Route path="invite" element={<InviteModal />} />
           <Route path="logs" element={<TableLogs />} />
           <Route path="organization" element={<OrganizationInput />} />
           <Route path="apikeys" element={<ApiKeys /> } />
-          <Route path="statistics" element={<div>Statistiques</div>} />
+          <Route path="statistics" element={<MetricsOverview />} />
           <Route path="members" element={<div>Gestion des Membres</div>} />
         </Route>
+
+
+        {/* Auth */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
       </Routes>
   );
 };
