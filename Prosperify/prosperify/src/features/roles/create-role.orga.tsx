@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import type { AssistantScope, RoleScope } from '@/features/roles/types';
 import { prosperify } from '@/core/ProsperifyClient';
-import type { RoleScope, AssistantScope } from './hooks/roleStore';
 
 interface CreateRoleModalProps {
   onCreateRole: (
@@ -22,13 +22,10 @@ const CreateRoleModal: React.FC<CreateRoleModalProps> = ({ onCreateRole }) => {
 
   // ✅ React Query pour charger les assistants
   const { data: assistants = [], isLoading: assistantsLoading } = useQuery({
-    queryKey: ['assistants'],
+    queryKey: ['assistants', 'list'],
     queryFn: async () => {
-      const res = await prosperify.assistants.postV1AssistantsList({
-        limit: 100,
-        order: 'desc',
-      });
-      return res?.data?.assistants || [];
+      const response = await prosperify.assistants.postV1AssistantsList(); // ✅ updated: direct SDK call
+      return (response.data?.assistants ?? []) as Array<{ id: string; name: string }>;
     },
     staleTime: 5 * 60 * 1000,
   });

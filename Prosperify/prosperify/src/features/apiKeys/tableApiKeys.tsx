@@ -9,7 +9,8 @@ const TableApiKeys: React.FC = () => {
   const [success, setSuccess] = useState<string | null>(null);
 
   // ✅ React Query hooks
-  const { data: apiKeys = [], isLoading, error } = useApiKeys({ limit: 100, order: 'desc' });
+  const { data, isLoading, error } = useApiKeys({ limit: 100, order: 'desc' });
+  const apiKeys = data?.items ?? [];
   const deleteApiKey = useDeleteApiKey();
   const copyApiKey = useCopyApiKey();
 

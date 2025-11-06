@@ -1,10 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { prosperify } from '@/core/ProsperifyClient';
-import { ApiKeysService } from '@/sdk/services/ApiKeysService';
 import AlertError from '@/components/ui/base/Alert/alertError';
 import AlertSuccess from '@/components/ui/base/Alert/alertSuccess';
-import type { ApiKeyScope, AssistantScope } from './hooks/useApiKeys';
+import type { ApiKeyScope, AssistantScope } from '@/features/apiKeys/types';
+import { apiKeyKeys } from './hooks/useApiKeys';
 
 interface CreateApiKeyModalProps {
   onSuccess?: () => void;
@@ -25,10 +25,10 @@ const CreateApiKeyModal: React.FC<CreateApiKeyModalProps> = ({ onSuccess }) => {
 
   // Charger les assistants pour pouvoir donner un accès assistant-level (optionnel)
   const { data: assistants = [], isLoading: assistantsLoading } = useQuery({
-    queryKey: ['assistants'],
+    queryKey: ['assistants', 'list'],
     queryFn: async () => {
-      const res = await prosperify.assistants.postV1AssistantsList({ limit: 100, order: 'desc' });
-      return res?.data?.assistants || [];
+      const response = await prosperify.assistants.postV1AssistantsList(); // ✅ updated: direct SDK call
+      return (response.data?.assistants ?? []) as Array<{ id: string; name: string }>;
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -67,17 +67,19 @@ const CreateApiKeyModal: React.FC<CreateApiKeyModalProps> = ({ onSuccess }) => {
     const assistantsPayload = selectedAssistants.map((a) => ({ id: a.id, scopes: a.scopes }));
 
     try {
-      const res = await ApiKeysService.postV1KeysNew({
+      const response = await prosperify.apiKeys.postV1KeysNew({ // ✅ updated: direct SDK call
         name,
         scopes: selectedScopes,
         assistants: assistantsPayload,
       });
 
-      const created = (res as any)?.data?.apiKey;
-      if (!created) throw new Error('Invalid server response');
+      const created = response.data?.apiKey;
+      if (!created) {
+        throw new Error('Prosperify API did not return the created API key.');
+      }
 
-      // invalider la liste des api keys pour forcer refetch
-      queryClient.invalidateQueries({ queryKey: ['apiKeys'] });
+      queryClient.invalidateQueries({ queryKey: apiKeyKeys.all });
+      queryClient.setQueryData(apiKeyKeys.detail(created.id), created);
 
       setSuccess('API key créée avec succès');
       setTimeout(() => setSuccess(null), 3000);

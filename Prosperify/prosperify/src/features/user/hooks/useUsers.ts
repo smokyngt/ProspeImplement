@@ -1,5 +1,23 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { prosperify } from '@/core/ProsperifyClient';
+import useAuthStore from '@/features/auth/store/AuthStore';
+import type {
+  CreateUserPayload,
+  RoleMutationPayload,
+  UpdateUserPayload,
+  UserSummary,
+  UsersListParams,
+} from '@/features/user/types';
+
+// @deprecated Préférez les types de '@/features/user/types'.
+export type { UserSummary, UsersListParams } from '@/features/user/types';
+
+const userKeys = {
+  all: ['users'] as const,
+  list: (params: UsersListParams = {}) => ['users', 'list', params] as const,
+  detail: (id: string) => ['users', id] as const,
+  scopes: (id: string) => ['users', id, 'scopes'] as const,
+};
 
 // ════════════════════════════════════════════════════════════════
 // 📋 QUERIES (Récupération de données)
@@ -10,23 +28,18 @@ import { prosperify } from '@/core/ProsperifyClient';
  * @example
  * const { data: users, isLoading } = useUsers({ limit: 50, order: 'desc' })
  */
-export function useUsers(params?: {
-  limit?: number;
-  order?: 'asc' | 'desc';
-  page?: number;
-  roleId?: string;
-}) {
+export function useUsers(params: UsersListParams = {}) {
   return useQuery({
-    queryKey: ['users', params],
+    queryKey: userKeys.list(params),
     queryFn: async () => {
-      const res = await prosperify.users.postV1UsersList(params);
+      const response = await prosperify.users.postV1UsersList(params); // ✅ updated: direct SDK call
       return {
-        users: res?.data?.users || [],
-        total: res?.data?.total || 0,
-        eventMessage: res?.eventMessage,
+        users: (response.data?.users ?? []) as UserSummary[],
+        total: response.data?.total ?? response.data?.users?.length ?? 0,
+        eventMessage: response.eventMessage,
       };
     },
-    staleTime: 5 * 60 * 1000, // Cache 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -37,15 +50,12 @@ export function useUsers(params?: {
  */
 export function useUser(id: string) {
   return useQuery({
-    queryKey: ['users', id],
+    queryKey: userKeys.detail(id),
     queryFn: async () => {
-      const res = await prosperify.users.getV1Users(id);
-      return {
-        user: res?.data?.user || null,
-        eventMessage: res?.eventMessage,
-      };
+      const response = await prosperify.users.getV1Users(id); // ✅ updated: direct SDK call
+      return (response.data?.user ?? null) as UserSummary | null;
     },
-    enabled: !!id, // Ne lance la requête que si l'ID existe
+    enabled: Boolean(id),
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -57,15 +67,12 @@ export function useUser(id: string) {
  */
 export function useUserScopes(id: string) {
   return useQuery({
-    queryKey: ['users', id, 'scopes'],
+    queryKey: userKeys.scopes(id),
     queryFn: async () => {
-      const res = await prosperify.users.getV1UsersScopes(id);
-      return {
-        scopes: res?.data?.scopes || [],
-        eventMessage: res?.eventMessage,
-      };
+      const response = await prosperify.users.getV1UsersScopes(id); // ✅ updated: direct SDK call
+      return (response.data?.scopes ?? []) as string[];
     },
-    enabled: !!id,
+    enabled: Boolean(id),
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -84,20 +91,10 @@ export function useCreateUser() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (payload: {
-      email: string;
-      name: string;
-      password: string;
-    }) => {
-      const res = await prosperify.users.postV1UsersNew(payload);
-      return {
-        user: res?.data?.user,
-        eventMessage: res?.eventMessage,
-      };
-    },
+    mutationFn: (payload: CreateUserPayload) =>
+      prosperify.users.postV1UsersNew(payload), // ✅ updated: direct SDK call
     onSuccess: () => {
-      // ✅ Invalide le cache de la liste des utilisateurs
-      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: userKeys.all });
     },
     onError: (error: any) => {
       console.error('[useCreateUser]', error?.message || error);
@@ -115,32 +112,11 @@ export function useUpdateUser() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      id,
-      data,
-    }: {
-      id: string;
-      data: {
-        email?: string;
-        name?: string;
-        password?: string;
-        preferences?: {
-          language?: string;
-          theme?: 'light' | 'dark' | 'auto';
-        };
-        verified?: boolean;
-      };
-    }) => {
-      const res = await prosperify.users.putV1Users(id, data);
-      return {
-        success: res?.data?.success || false,
-        eventMessage: res?.eventMessage,
-      };
-    },
+    mutationFn: ({ id, data }: { id: string; data: UpdateUserPayload }) =>
+      prosperify.users.putV1Users(id, data), // ✅ updated: direct SDK call
     onSuccess: (_, variables) => {
-      // ✅ Invalide le cache de l'utilisateur modifié + la liste
-      queryClient.invalidateQueries({ queryKey: ['users', variables.id] });
-      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: userKeys.detail(variables.id) });
+      queryClient.invalidateQueries({ queryKey: userKeys.all });
     },
     onError: (error: any) => {
       console.error('[useUpdateUser]', error?.message || error);
@@ -159,15 +135,11 @@ export function useDeleteUser() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const res = await prosperify.users.deleteV1Users(id);
-      return {
-        success: res?.data?.success || false,
-        eventMessage: res?.eventMessage,
-      };
+      await prosperify.users.deleteV1Users(id); // ✅ updated: direct SDK call
+      return id;
     },
     onSuccess: () => {
-      // ✅ Invalide toutes les queries utilisateurs
-      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: userKeys.all });
     },
     onError: (error: any) => {
       console.error('[useDeleteUser]', error?.message || error);
@@ -185,25 +157,11 @@ export function useAddUserRole() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      userId,
-      roleId,
-    }: {
-      userId: string;
-      roleId: string;
-    }) => {
-      const res = await prosperify.users.postV1UsersRoles(userId, { roleId });
-      return {
-        success: res?.data?.success || false,
-        eventMessage: res?.eventMessage,
-      };
-    },
+    mutationFn: (payload: RoleMutationPayload) =>
+      prosperify.users.postV1UsersRoles(payload.userId, { roleId: payload.roleId }), // ✅ updated: direct SDK call
     onSuccess: (_, variables) => {
-      // ✅ Invalide le cache de l'utilisateur + ses scopes
-      queryClient.invalidateQueries({ queryKey: ['users', variables.userId] });
-      queryClient.invalidateQueries({
-        queryKey: ['users', variables.userId, 'scopes'],
-      });
+      queryClient.invalidateQueries({ queryKey: userKeys.detail(variables.userId) });
+      queryClient.invalidateQueries({ queryKey: userKeys.scopes(variables.userId) });
     },
     onError: (error: any) => {
       console.error('[useAddUserRole]', error?.message || error);
@@ -221,24 +179,11 @@ export function useRemoveUserRole() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      userId,
-      roleId,
-    }: {
-      userId: string;
-      roleId: string;
-    }) => {
-      const res = await prosperify.users.deleteV1UsersRoles(userId, roleId);
-      return {
-        success: res?.data?.success || false,
-        eventMessage: res?.eventMessage,
-      };
-    },
+    mutationFn: (payload: RoleMutationPayload) =>
+      prosperify.users.deleteV1UsersRoles(payload.userId, payload.roleId), // ✅ updated: direct SDK call
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['users', variables.userId] });
-      queryClient.invalidateQueries({
-        queryKey: ['users', variables.userId, 'scopes'],
-      });
+      queryClient.invalidateQueries({ queryKey: userKeys.detail(variables.userId) });
+      queryClient.invalidateQueries({ queryKey: userKeys.scopes(variables.userId) });
     },
     onError: (error: any) => {
       console.error('[useRemoveUserRole]', error?.message || error);
@@ -258,31 +203,25 @@ export function useRemoveUserRole() {
  */
 export function useLogin() {
   const queryClient = useQueryClient();
+  const setAuthData = useAuthStore((state) => state.setAuthData);
 
   return useMutation({
-    mutationFn: async (credentials: { email: string; password: string }) => {
-      const res = await prosperify.users.postV1UsersLogin(credentials);
-      return {
-        user: res?.data?.user,
-        accessToken: res?.data?.accessToken,
-        refreshToken: res?.data?.refreshToken,
-        eventMessage: res?.eventMessage,
-      };
-    },
-    onSuccess: (data) => {
-      // ✅ Sauvegarde automatique des tokens
-      if (data?.accessToken) {
-        localStorage.setItem('access_token', data.accessToken);
-        prosperify.setToken(data.accessToken);
-      }
-      if (data?.refreshToken) {
-        localStorage.setItem('refresh_token', data.refreshToken);
+    mutationFn: (credentials: { email: string; password: string }) =>
+      prosperify.users.postV1UsersLogin(credentials), // ✅ updated: direct SDK call
+    onSuccess: (res) => {
+      const user = (res as any)?.data?.user as UserSummary | undefined;
+      const accessToken = (res as any)?.data?.accessToken as string | undefined;
+      const refreshToken = (res as any)?.data?.refreshToken as string | undefined;
+      const apiKey = (res as any)?.data?.apiKey as string | undefined;
+
+      if (user && accessToken) {
+        setAuthData(user, accessToken, refreshToken ?? null, apiKey ?? null);
       }
 
-      // ✅ Invalide toutes les queries pour forcer un refresh avec le nouveau token
-      queryClient.invalidateQueries();
+      queryClient.invalidateQueries({ queryKey: ['current-user'] });
+      queryClient.invalidateQueries({ queryKey: userKeys.all });
 
-      console.log('✅ Login successful:', data.eventMessage);
+      console.log('✅ Login successful:', (res as any)?.eventMessage);
     },
     onError: (error: any) => {
       console.error('[useLogin]', error?.message || error);
@@ -298,16 +237,13 @@ export function useLogin() {
  */
 export function useLogout() {
   const queryClient = useQueryClient();
+  const logout = useAuthStore.getState().logout;
 
-  return () => {
-    // ✅ Supprime les tokens
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    prosperify.setToken('');
+  return async () => {
+    await logout();
 
-    // ✅ Vide tout le cache React Query
     queryClient.clear();
 
     console.log('✅ Logged out successfully');
   };
-} 
+}

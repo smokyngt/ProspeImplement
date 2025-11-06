@@ -6,7 +6,7 @@ interface User {
   id: string;
   email: string;
   name: string;
-  organization?: string;
+  organization?: string | null;
   emailVerified?: boolean;
 }
 
@@ -14,11 +14,19 @@ interface AuthState {
   user: User | null;
   token: string | null;
   refreshToken: string | null;
+  apiKey: string | null;
   isAuthenticated: boolean;
-  
+
   // ✅ Nouvelle méthode pour set les données depuis React Query
-  setAuthData: (user: User, token: string, refreshToken: string) => void;
-  
+  setAuthData: (
+    user: User,
+    token: string,
+    refreshToken?: string | null,
+    apiKey?: string | null,
+  ) => void;
+
+  setApiKey: (apiKey: string | null) => void;
+
   logout: () => Promise<void>;
   refreshAccessToken: () => Promise<void>;
   setUser: (user: User | null) => void;
@@ -33,11 +41,48 @@ const useAuthStore = create<AuthState>()(
       user: null,
       token: null,
       refreshToken: null,
+      apiKey: localStorage.getItem('api_key'),
       isAuthenticated: false,
 
       // ✅ Set les données d'auth depuis React Query
-      setAuthData: (user: User, token: string, refreshToken: string) => {
-        set({ user, token, refreshToken, isAuthenticated: true });
+      setAuthData: (
+        user: User,
+        token: string,
+        refreshToken?: string | null,
+        apiKey?: string | null,
+      ) => {
+        prosperify.setToken(token);
+        localStorage.setItem('access_token', token);
+        if (refreshToken) {
+          localStorage.setItem('refresh_token', refreshToken);
+        }
+        if (apiKey) {
+          prosperify.setApiKey(apiKey);
+          localStorage.setItem('api_key', apiKey);
+        }
+        localStorage.setItem('current_user', JSON.stringify(user));
+
+        set({
+          user,
+          token,
+          refreshToken: refreshToken ?? null,
+          apiKey: apiKey ?? get().apiKey ?? null,
+          isAuthenticated: true,
+        });
+      },
+
+      /**
+       * Synchronise dynamiquement la clé API avec Prosperify et le stockage local.
+       */
+      setApiKey: (apiKey: string | null) => {
+        if (apiKey) {
+          prosperify.setApiKey(apiKey);
+          localStorage.setItem('api_key', apiKey);
+        } else {
+          prosperify.setApiKey('');
+          localStorage.removeItem('api_key');
+        }
+        set({ apiKey });
       },
 
       verifyEmail: async (token: string) => {
@@ -89,10 +134,18 @@ const useAuthStore = create<AuthState>()(
           }
         }
 
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('current_user');
+        localStorage.removeItem('api_key');
+        prosperify.setToken('');
+        prosperify.setApiKey('');
+
         set({
           user: null,
           token: null,
           refreshToken: null,
+          apiKey: null,
           isAuthenticated: false,
         });
       },
@@ -110,6 +163,12 @@ const useAuthStore = create<AuthState>()(
 
           if (!newToken) {
             throw new Error('Invalid refresh response');
+          }
+
+          prosperify.setToken(newToken);
+          localStorage.setItem('access_token', newToken);
+          if (newRefreshToken) {
+            localStorage.setItem('refresh_token', newRefreshToken);
           }
 
           set({
@@ -132,6 +191,7 @@ const useAuthStore = create<AuthState>()(
         user: state.user,
         token: state.token,
         refreshToken: state.refreshToken,
+        apiKey: state.apiKey,
         isAuthenticated: state.isAuthenticated,
       }),
     }

@@ -13,7 +13,7 @@ import { prosperify } from '@/core/ProsperifyClient';
 export function useUploadText() {
   return useMutation({
     mutationFn: async (payload: { text: string }) => {
-      const res = await prosperify.uploads.postV1UploadsText(payload);
+      const res = await prosperify.uploads.postV1UploadsText(payload); // ✅ updated: direct SDK call
       return {
         data: res?.data,
         eventMessage: res?.event?.code,
@@ -45,16 +45,12 @@ export function useUploadDocuments() {
       assistantId: string;
       files: File[];
     }) => {
-      // Créer un FormData pour l'upload multipart
       const formData = new FormData();
       files.forEach((file) => {
         formData.append('files', file);
       });
 
-      const res = await prosperify.uploads.postV1UploadsDocuments(
-        assistantId,
-        formData as any
-      );
+      const res = await prosperify.uploads.postV1UploadsDocuments(assistantId, formData as any); // ✅ updated: direct SDK call
 
       return {
         data: res?.data,
@@ -96,10 +92,7 @@ export function useUploadAssistantProfilePicture() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const res = await prosperify.uploads.postV1UploadsPfpAssistant(
-        assistantId,
-        formData as any
-      );
+      const res = await prosperify.uploads.postV1UploadsPfpAssistant(assistantId, formData as any); // ✅ updated: direct SDK call
 
       return {
         data: res?.data,
@@ -136,10 +129,7 @@ export function useUploadUserProfilePicture() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const res = await prosperify.uploads.postV1UploadsPfpUser(
-        userId,
-        formData as any
-      );
+      const res = await prosperify.uploads.postV1UploadsPfpUser(userId, formData as any); // ✅ updated: direct SDK call
 
       return {
         data: res?.data,
@@ -185,10 +175,7 @@ export function useUploadOrganizationProfilePicture() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const res = await prosperify.uploads.postV1UploadsPfpOrganization(
-        organizationId,
-        formData as any
-      );
+      const res = await prosperify.uploads.postV1UploadsPfpOrganization(organizationId, formData as any); // ✅ updated: direct SDK call
 
       return {
         data: res?.data,

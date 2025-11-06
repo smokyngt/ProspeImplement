@@ -15,7 +15,8 @@ const InviteModal: React.FC = () => {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  const { data: invitations = [], isLoading: invitesLoading, error: invitesError } = useInvitations()
+  const { data, isLoading: invitesLoading, error: invitesError } = useInvitations()
+  const invitations = data?.items ?? []
   const createInvitation = useCreateInvitation()
 
   useEffect(() => {
