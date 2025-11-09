@@ -7,14 +7,14 @@ import 'preline';
 import DashboardAssistant from './features/assistant/pages/dashboard.assistant';
 import IndexAssistant from './features/assistant/pages/index.assistant';
 import Sources from './features/upload/components/uploadDocuments';
-import Export from './features/assistant/pages/export.assistant';
-import SettingsAssistant from './features/upload/components/uploadDocuments';
+import SettingsAssistant from './features/assistant/pages/settings.assistant';
 import Playground from './features/chat/pages/playground';
 import DashboardUser from './features/user/pages/dashboard.user';
 import DashboardOrga from './features/organization/pages/dashboard.orga';
+import SettingsOrganization from './features/organization/pages/settingsOrga';
 
 import TableUsers from './features/logs/userLogs.orga';
-import InviteModal from './features/invites/inviteModal.common';
+import InviteModal from './features/invites/inviteModal';
 import TableLogs from './features/logs/activityLogs.orga';
 import OrganizationInput from './features/organization/components/organizationInput.orga';
 import SettingsUser from './features/user/pages/settings.user';
@@ -57,7 +57,6 @@ const App: React.FC = () => {
         <Route path="/assistant/:id/" element={<DashboardAssistant />}>
           <Route index element={<IndexAssistant />} />
           <Route path="settings" element={<SettingsAssistant />} />
-          <Route path="export" element={<Export />} />
           <Route path="sources" element={<Sources />} />
         </Route>
 
@@ -78,6 +77,7 @@ const App: React.FC = () => {
           <Route path="apikeys" element={<TableApiKeys />} />
           <Route path="statistics" element={<MetricsOverview />} />
           <Route path="members" element={<div>Gestion des Membres</div>} />
+          <Route path="settings-orga" element={<SettingsOrganization />} />
         </Route>
 
 

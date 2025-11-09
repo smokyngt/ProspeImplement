@@ -1,52 +1,50 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useMutation } from '@tanstack/react-query';
-import { prosperify } from '@/core/ProsperifyClient';
-import {useAuthStore} from '../store/AuthStore';
+import { useAuth } from '../hooks/useAuth';
+import { useAuthStore } from '../store/AuthStore';
 
 const VerifyEmail: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, setUser } = useAuthStore();
-
-  // ✅ React Query mutation pour vérifier l'email
-  const verifyEmailMutation = useMutation({
-    mutationFn: async (token: string) => {
-      const res = await prosperify.auth.postV1AuthEmailVerify({ token });
-
-      // ✅ Mettre à jour le user dans Zustand
-      if (user) {
-        setUser({ ...user, emailVerified: true } as typeof user);
-      }
-
-      return { message: res.event?.code || 'Email verified successfully' };
-    },
-    onSuccess: (data) => {
-      // ✅ Redirection après 3 secondes
-      setTimeout(() => {
-        navigate('/dashboard-orga');
-      }, 3000);
-    },
-  });
+  const { user } = useAuthStore();
+  
+  // ✅ Utilisation du hook useAuth qui contient déjà verifyEmailMutation
+  const { verifyEmail, verifyEmailMutation } = useAuth();
 
   // ✅ Vérification automatique au chargement
   useEffect(() => {
     const token = searchParams.get('token');
+    const email = user?.email;
 
     if (!token) {
-      verifyEmailMutation.mutate(''); // Déclenche une erreur pour afficher le message
+      // Déclenche une erreur pour afficher le message
+      verifyEmail({ email: '', otp: '' });
       return;
     }
 
-    verifyEmailMutation.mutate(token);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+    if (!email) {
+      console.error('No user email found in auth store');
+      return;
+    }
+
+    // ✅ Appel de la mutation avec email et token (otp)
+    verifyEmail({ email, otp: token });
+  }, [searchParams, user?.email, verifyEmail]);
+
+  // ✅ Redirection après succès
+  useEffect(() => {
+    if (verifyEmailMutation.isSuccess) {
+      setTimeout(() => {
+        navigate('/dashboard-orga');
+      }, 3000);
+    }
+  }, [verifyEmailMutation.isSuccess, navigate]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="w-full max-w-md">
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-8">
-          {/* Loading state */}
+          {/* 🔄 Loading state */}
           {verifyEmailMutation.isPending && (
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -57,7 +55,7 @@ const VerifyEmail: React.FC = () => {
             </div>
           )}
 
-          {/* Success state */}
+          {/* ✅ Success state */}
           {verifyEmailMutation.isSuccess && (
             <div className="text-center">
               <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
@@ -87,7 +85,7 @@ const VerifyEmail: React.FC = () => {
             </div>
           )}
 
-          {/* Error state */}
+          {/* ❌ Error state */}
           {verifyEmailMutation.isError && (
             <div className="text-center">
               <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
@@ -109,15 +107,32 @@ const VerifyEmail: React.FC = () => {
                 Verification Failed
               </h2>
               <p className="text-sm text-red-600 mb-4">
-                {(verifyEmailMutation.error as Error)?.message || 
-                 'Invalid verification link. No token provided.'}
+                {(verifyEmailMutation.error as Error)?.message ||
+                  'Invalid or expired verification link. Please try again.'}
               </p>
-              <button
-                onClick={() => navigate('/login')}
-                className="w-full py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700"
-              >
-                Back to Login
-              </button>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => navigate('/login')}
+                  className="w-full py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  Back to Login
+                </button>
+                {user?.email && (
+                  <button
+                    onClick={() => {
+                      // Réinitialiser l'erreur et réessayer
+                      verifyEmailMutation.reset();
+                      const token = searchParams.get('token');
+                      if (token) {
+                        verifyEmail({ email: user.email, otp: token });
+                      }
+                    }}
+                    className="w-full py-2 px-4 text-sm font-medium rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                  >
+                    Try Again
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>

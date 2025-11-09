@@ -1,8 +1,27 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { prosperify } from '@/core/ProsperifyClient';
-import { useAuthStore, type AuthUser } from '../store/AuthStore';
-import type { ServiceResponse } from '@/core/types';
+import { useAuthStore } from '../store/AuthStore';
+import type {
+  AuthUser,
+  LoginResponse,
+  RefreshTokenResponse,
+  VerifyEmailResponse,
+  SendEmailResponse,
+  ResetPasswordResponse,
+} from '../types/authType';
+
+/* ==========================================================================
+   🔐 useAuth — Centralized authentication hook
+   ==========================================================================
+   Handles:
+   - Login / Register
+   - Refresh tokens
+   - Email verification / resend
+   - Password recovery
+   - SSO flows
+   All fully typed using authTypes.ts
+   ========================================================================== */
 
 interface LoginCredentials {
   email: string;
@@ -10,61 +29,39 @@ interface LoginCredentials {
 }
 
 interface RegisterData {
-  name: string;
   email: string;
+  name: string;
   password: string;
-  organization?: string;
-}
-
-interface AuthResponse {
-  accessToken: string;
-  refreshToken?: string;
-  apiKey?: string;
-  user: AuthUser;
-}
-
-// ✅ Interface pour la réponse de login
-interface LoginResponse {
-  user: AuthUser;
-  accessToken: string;
-  refreshToken?: string;
-  apiKey?: string;
 }
 
 export function useAuth() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const {
-    setAuthData,
-    clearAuth,
-    updateToken,
-    user,
-    isAuthenticated,
-    accessToken,
-  } = useAuthStore();
+  const { setAuthData, clearAuth, updateToken, user, isAuthenticated } = useAuthStore();
 
   /* ════════════════════════════════════════════════════════════════
-     LOGIN - ✅ UN SEUL APPEL API ICI
+     LOGIN
   ════════════════════════════════════════════════════════════════ */
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginCredentials) => {
-      // ✅ L'UNIQUE endroit où on appelle l'API
-      const response = await prosperify.auth.postV1AuthLogin(credentials);
-      
-      // ✅ Extraction type-safe
+      const response = await prosperify.users.postV1UsersLogin(credentials);
       const data = response?.data as unknown as LoginResponse;
-      
+
       if (!data?.user || !data?.accessToken) {
         throw new Error('Invalid login response');
       }
-      
-      return data;
+
+      const typedUser: AuthUser = {
+        ...data.user,
+        object: 'user',
+        createdAt: new Date(data.user.createdAt).getTime(),
+      };
+
+      return { ...data, user: typedUser };
     },
     onSuccess: (data) => {
-      // ✅ Sauvegarde des données d'auth
       setAuthData(data.user, data.accessToken, data.refreshToken, data.apiKey);
-      
-      // ✅ Invalide le cache pour refresh
+      prosperify.setToken(data.accessToken);
       queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
     },
   });
@@ -74,19 +71,27 @@ export function useAuth() {
   ════════════════════════════════════════════════════════════════ */
   const registerMutation = useMutation({
     mutationFn: async (data: RegisterData) => {
-      const response = await prosperify.auth.postV1AuthRegister(data);
-      const authData = response?.data as unknown as LoginResponse;
-      
-      if (!authData?.user || !authData?.accessToken) {
+      const response = await prosperify.users.postV1UsersNew(data);
+      const userData = (response?.data as { user?: AuthUser })?.user;
+
+      if (!userData) {
         throw new Error('Invalid register response');
       }
-      
-      return authData;
+
+      return { userData, credentials: data };
     },
-    onSuccess: (data) => {
-      setAuthData(data.user, data.accessToken, data.refreshToken, data.apiKey);
-      queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
-      navigate('/dashboard-orga');
+    onSuccess: async ({ userData, credentials }) => {
+      try {
+        await loginMutation.mutateAsync({
+          email: credentials.email,
+          password: credentials.password,
+        });
+        navigate('/dashboard-orga');
+      } catch {
+        navigate('/verify-email-prompt', {
+          state: { email: credentials.email },
+        });
+      }
     },
   });
 
@@ -112,16 +117,14 @@ export function useAuth() {
   const refreshMutation = useMutation({
     mutationFn: async (refreshToken: string) => {
       const response = await prosperify.auth.postV1AuthTokenRefresh({ refreshToken });
-      const data = response?.data as unknown as { accessToken: string };
-      
-      if (!data?.accessToken) {
-        throw new Error('Invalid refresh response');
-      }
-      
+      const data = response?.data as unknown as RefreshTokenResponse;
+
+      if (!data?.accessToken) throw new Error('Invalid refresh response');
       return data;
     },
     onSuccess: (data) => {
       updateToken(data.accessToken);
+      prosperify.setToken(data.accessToken);
     },
     onError: () => {
       clearAuth();
@@ -130,11 +133,12 @@ export function useAuth() {
   });
 
   /* ════════════════════════════════════════════════════════════════
-     VERIFY EMAIL
+     EMAIL VERIFICATION
   ════════════════════════════════════════════════════════════════ */
   const verifyEmailMutation = useMutation({
     mutationFn: async (data: { email: string; otp: string }) => {
-      return await prosperify.auth.postV1AuthEmailVerify(data);
+      const response = await prosperify.auth.postV1AuthEmailVerify(data);
+      return response?.data as unknown as VerifyEmailResponse;
     },
     onSuccess: () => {
       if (user) {
@@ -146,26 +150,28 @@ export function useAuth() {
     },
   });
 
-  /* ════════════════════════════════════════════════════════════════
-     PASSWORD MANAGEMENT
-  ════════════════════════════════════════════════════════════════ */
   const resendVerificationMutation = useMutation({
     mutationFn: async (email: string) => {
-      return await prosperify.auth.postV1AuthEmailSend({ email });
+      const response = await prosperify.auth.postV1AuthEmailSend({ email });
+      return response?.data as unknown as SendEmailResponse;
     },
   });
 
+  /* ════════════════════════════════════════════════════════════════
+     PASSWORD MANAGEMENT
+  ════════════════════════════════════════════════════════════════ */
   const forgotPasswordMutation = useMutation({
-    mutationFn: async (email: string) => {
-      return await prosperify.auth.postV1AuthPasswordSend({ email });
-    },
+    mutationFn: async (email: string) =>
+      prosperify.auth.postV1AuthPasswordSend({ email }),
   });
 
   const resetPasswordMutation = useMutation({
     mutationFn: async (data: { token: string; password: string }) => {
-      return await prosperify.auth.postV1AuthPasswordReset(data.token, {
-        password: data.password,
-      });
+      const response = await prosperify.auth.postV1AuthPasswordReset(
+        data.token,
+        { password: data.password },
+      );
+      return response?.data as unknown as ResetPasswordResponse;
     },
   });
 
@@ -177,82 +183,85 @@ export function useAuth() {
       organizationId: string;
       mode?: 'json' | 'redirect';
       state?: string;
-    }) => {
-      return await prosperify.auth.getV1AuthSsoStart(
-        data.organizationId,
-        data.mode,
-        data.state
-      );
-    },
+    }) => prosperify.auth.getV1AuthSsoStart(data.organizationId, data.mode, data.state),
   });
 
   const ssoCallbackMutation = useMutation({
-    mutationFn: async (data: { code: string; state: string; organizationId: string }) => {
+    mutationFn: async (data: {
+      code: string;
+      state: string;
+      organizationId: string;
+    }) => {
       const response = await prosperify.auth.getV1AuthSsoCallback(
         data.code,
         data.state,
-        data.organizationId
+        data.organizationId,
       );
-      
+
       const authData = response?.data as unknown as LoginResponse;
-      
+
       if (!authData?.user || !authData?.accessToken) {
         throw new Error('Invalid SSO callback response');
       }
-      
+
       return authData;
     },
     onSuccess: (data) => {
-      setAuthData(data.user, data.accessToken, data.refreshToken);
+      const typedUser: AuthUser = {
+        ...data.user,
+        object: 'user',
+        createdAt: new Date(data.user.createdAt).getTime(),
+      };
+
+      setAuthData(typedUser, data.accessToken, data.refreshToken);
+      prosperify.setToken(data.accessToken);
       queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
       navigate('/dashboard-orga');
     },
   });
 
   /* ════════════════════════════════════════════════════════════════
-     CURRENT USER
-  ════════════════════════════════════════════════════════════════ */
-  const { data: currentUser, isLoading: isLoadingUser } = useQuery({
-    queryKey: ['auth', 'me'],
-    queryFn: async () => {
-      if (!accessToken) return null;
-      return user;
-    },
-    enabled: !!accessToken && isAuthenticated,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  /* ════════════════════════════════════════════════════════════════
-     RETURN
+     RETURN API
   ════════════════════════════════════════════════════════════════ */
   return {
-    // State
-    user: currentUser || user,
+    user,
     isAuthenticated,
-    isLoading: isLoadingUser,
 
-    // Mutations async (pour utilisation simple)
-    login: loginMutation.mutateAsync,
-    register: registerMutation.mutateAsync,
-    logout: logoutMutation.mutateAsync,
-    refreshToken: refreshMutation.mutateAsync,
-    verifyEmail: verifyEmailMutation.mutateAsync,
-    resendVerification: resendVerificationMutation.mutateAsync,
-    forgotPassword: forgotPasswordMutation.mutateAsync,
-    resetPassword: resetPasswordMutation.mutateAsync,
-    ssoStart: ssoStartMutation.mutateAsync,
-    ssoCallback: ssoCallbackMutation.mutateAsync,
-
-    // Mutations objects (pour états isPending, error, etc.)
+    // Auth mutations
+    login: loginMutation.mutate,
+    loginAsync: loginMutation.mutateAsync,
     loginMutation,
+
+    register: registerMutation.mutate,
+    registerAsync: registerMutation.mutateAsync,
     registerMutation,
+
+    logout: logoutMutation.mutate,
     logoutMutation,
+
+    refreshToken: refreshMutation.mutate,
     refreshMutation,
+
+    // Email verification
+    verifyEmail: verifyEmailMutation.mutate,
+    verifyEmailAsync: verifyEmailMutation.mutateAsync,
     verifyEmailMutation,
+
+    resendVerification: resendVerificationMutation.mutate,
     resendVerificationMutation,
+
+    // Password management
+    forgotPassword: forgotPasswordMutation.mutate,
     forgotPasswordMutation,
+
+    resetPassword: resetPasswordMutation.mutate,
     resetPasswordMutation,
+
+    // SSO
+    startSSO: ssoStartMutation.mutate,
     ssoStartMutation,
+
+    handleSSOCallback: ssoCallbackMutation.mutate,
     ssoCallbackMutation,
   };
 }

@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { useRoles } from '../roles/hooks/useRoles';
 import { useAssistants } from '@/features/assistant/hook/useAssistants';
 import type { AssistantScope, RoleScope } from '../roles/types/types';
+import type { AssistantSummary } from '@/features/assistant/types/assistantTypes';
 
 interface CreateRoleModalProps {
   onCreateRole: (
@@ -16,15 +17,21 @@ const CreateRoleModal: React.FC<CreateRoleModalProps> = ({ onCreateRole }) => {
   const roles = useRoles();
   const assistants = useAssistants();
 
-  // ✅ États locaux
+  // États locaux
   const [roleName, setRoleName] = useState('');
   const [selectedScopes, setSelectedScopes] = useState<RoleScope[]>([]);
   const [selectedAssistants, setSelectedAssistants] = useState<
     Array<{ id: string; name: string; scopes: AssistantScope[] }>
   >([]);
 
-  // ✅ Charger les assistants via le hook unique
-  const { data: assistantsList = [], isLoading: assistantsLoading } = assistants.useList();
+  // ✅ On récupère la liste des assistants correctement typée
+  const {
+    data: assistantsResponse,
+    isLoading: assistantsLoading,
+  } = assistants.useList();
+
+  // ✅ On extrait la liste typée (ou tableau vide)
+  const assistantsList: AssistantSummary[] = assistantsResponse?.assistants ?? [];
 
   const scopeOptions: Array<{ label: string; value: RoleScope }> = [
     { label: 'Manage Organization', value: 'organization' },
@@ -184,7 +191,7 @@ const CreateRoleModal: React.FC<CreateRoleModalProps> = ({ onCreateRole }) => {
                   <p className="text-sm text-gray-500">No assistants available</p>
                 ) : (
                   <div className="space-y-3">
-                    {assistantsList.map((assistant) => {
+                    {assistantsList.map((assistant: AssistantSummary) => {
                       const isSelected = selectedAssistants.find((a) => a.id === assistant.id);
 
                       return (

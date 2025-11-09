@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
-import { useUpdateUser } from '../../hooks/useUsers';
+import { useUsers } from '../../hooks/useUsers'; // ✅ correction ici
 import { User, Mail, Palette, Globe } from 'lucide-react';
 import type { UserSummary } from '@/features/user/types/types';
 
 const ProfileContent: React.FC = () => {
   const { data: currentUser, isLoading } = useCurrentUser();
-  const updateUser = useUpdateUser();
+  const { useUpdate } = useUsers(); // ✅ on récupère le sous-hook
+  const updateUser = useUpdate(currentUser?.id || ''); // ✅ initialisé avec l'id
 
   const [formData, setFormData] = useState({
     name: '',
@@ -34,14 +35,11 @@ const ProfileContent: React.FC = () => {
 
     try {
       await updateUser.mutateAsync({
-        id: currentUser.id,
-        data: {
-          name: formData.name,
-          email: formData.email,
-          preferences: {
-            theme: formData.theme === 'auto' ? 'light' : formData.theme, // fallback sécurité
-            language: formData.language,
-          },
+        name: formData.name,
+        email: formData.email,
+        preferences: {
+          theme: formData.theme === 'auto' ? 'light' : formData.theme,
+          language: formData.language,
         },
       });
       setIsEditing(false);
@@ -73,11 +71,7 @@ const ProfileContent: React.FC = () => {
   }
 
   if (!currentUser) {
-    return (
-      <div className="text-center text-gray-500 py-8">
-        Aucun utilisateur connecté.
-      </div>
-    );
+    return <div className="text-center text-gray-500 py-8">Aucun utilisateur connecté.</div>;
   }
 
   return (
@@ -228,7 +222,10 @@ const ProfileContent: React.FC = () => {
             <p className="text-gray-500">Rôles</p>
             <div className="flex flex-wrap gap-1 mt-1">
               {currentUser.roles.map((role: string, i: number) => (
-                <span key={i} className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">
+                <span
+                  key={i}
+                  className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full"
+                >
                   {role}
                 </span>
               ))}

@@ -1,14 +1,12 @@
 import React, { useState, useCallback, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMutation } from '@tanstack/react-query';
-import { prosperify } from '@/core/ProsperifyClient';
 import AlertError from '@/components/ui/base/Alert/alertError';
 import AlertSuccess from '@/components/ui/base/Alert/alertSuccess';
-import {useAuthStore} from '../store/AuthStore';
+import { useAuth } from '../hooks/useAuth';
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
-  const { setAuthData, isAuthenticated, user } = useAuthStore();
+  const { registerMutation, user } = useAuth();
 
   // State variables
   const [formData, setFormData] = useState({
@@ -17,44 +15,22 @@ const Register: React.FC = () => {
     password: '',
     confirmPassword: '',
   });
+
   const [errors, setErrors] = useState({
     name: null as string | null,
     email: null as string | null,
     password: null as string | null,
     confirmPassword: null as string | null,
   });
+
   const [success, setSuccess] = useState<string | null>(null);
 
   // ✅ Redirection si déjà connecté
   React.useEffect(() => {
-    if (isAuthenticated && user) {
+    if (user) {
       navigate('/dashboard-orga');
     }
-  }, [isAuthenticated, user, navigate]);
-
-  // ✅ React Query mutation pour l'inscription
-  const registerMutation = useMutation({
-    mutationFn: async ({ email, password, name }: { email: string; password: string; name: string }) => {
-      const res = await prosperify.auth.postV1AuthRegister({ email, password, name });
-      const { token, refreshToken, user } = res?.data || {};
-
-      if (!token || !user) {
-        throw new Error('Invalid response from server');
-      }
-
-      return { token, refreshToken, user, message: res.event?.code || 'Registration successful!' };
-    },
-    onSuccess: (data) => {
-      // ✅ Sauvegarder dans Zustand
-      setAuthData(data.user, data.token, data.refreshToken);
-      setSuccess(data.message);
-
-      // ✅ Redirection après succès
-      setTimeout(() => {
-        navigate('/dashboard-orga');
-      }, 1500);
-    },
-  });
+  }, [user, navigate]);
 
   // ✅ Reset des erreurs
   const resetErrors = useCallback(() => {
@@ -92,23 +68,27 @@ const Register: React.FC = () => {
     event.preventDefault();
     resetErrors();
 
-    if (!validateFields()) {
-      return;
-    }
+    if (!validateFields()) return;
 
-    await registerMutation.mutateAsync({
-      email: formData.email,
-      password: formData.password,
-      name: formData.name,
-    });
+    try {
+      await registerMutation.mutateAsync({
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        password: formData.password,
+      });
+
+      // ✅ L'auto-login et la redirection sont déjà gérés dans useAuth()
+      setSuccess('Registration successful!');
+    } catch (error) {
+      // Erreur déjà gérée dans le hook
+    }
   };
 
   // ✅ Mise à jour des champs
-  const handleChange = (field: keyof typeof formData) => (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    setFormData((prev) => ({ ...prev, [field]: e.target.value }));
-  };
+  const handleChange =
+    (field: keyof typeof formData) => (e: React.ChangeEvent<HTMLInputElement>) => {
+      setFormData((prev) => ({ ...prev, [field]: e.target.value }));
+    };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -116,7 +96,10 @@ const Register: React.FC = () => {
       {registerMutation.error && (
         <div className="fixed top-4 right-4 z-50">
           <AlertError
-            message={(registerMutation.error as Error).message || 'An error occurred. Please try again.'}
+            message={
+              (registerMutation.error as Error).message ||
+              'An error occurred. Please try again.'
+            }
             onClose={() => registerMutation.reset()}
             description=""
           />
@@ -146,7 +129,7 @@ const Register: React.FC = () => {
             </p>
           </div>
 
-          {/* Google Sign Up */}
+          {/* Google Sign Up (Optionnel) */}
           <button
             type="button"
             className="w-full py-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50"
@@ -179,7 +162,7 @@ const Register: React.FC = () => {
           {/* Form */}
           <form onSubmit={handleSubmit}>
             <div className="grid gap-y-4">
-              {/* Name */}
+              {/* Full Name */}
               <div>
                 <label htmlFor="name" className="block text-sm mb-2 font-medium">
                   Full Name
@@ -187,7 +170,6 @@ const Register: React.FC = () => {
                 <input
                   type="text"
                   id="name"
-                  name="name"
                   value={formData.name}
                   onChange={handleChange('name')}
                   className={`py-3 px-4 block w-full border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
@@ -197,9 +179,7 @@ const Register: React.FC = () => {
                   disabled={registerMutation.isPending}
                   required
                 />
-                {errors.name && (
-                  <p className="text-xs text-red-600 mt-1">{errors.name}</p>
-                )}
+                {errors.name && <p className="text-xs text-red-600 mt-1">{errors.name}</p>}
               </div>
 
               {/* Email */}
@@ -210,7 +190,6 @@ const Register: React.FC = () => {
                 <input
                   type="email"
                   id="email"
-                  name="email"
                   value={formData.email}
                   onChange={handleChange('email')}
                   className={`py-3 px-4 block w-full border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
@@ -220,9 +199,7 @@ const Register: React.FC = () => {
                   disabled={registerMutation.isPending}
                   required
                 />
-                {errors.email && (
-                  <p className="text-xs text-red-600 mt-1">{errors.email}</p>
-                )}
+                {errors.email && <p className="text-xs text-red-600 mt-1">{errors.email}</p>}
               </div>
 
               {/* Password */}
@@ -233,7 +210,6 @@ const Register: React.FC = () => {
                 <input
                   type="password"
                   id="password"
-                  name="password"
                   value={formData.password}
                   onChange={handleChange('password')}
                   className={`py-3 px-4 block w-full border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
@@ -243,23 +219,17 @@ const Register: React.FC = () => {
                   disabled={registerMutation.isPending}
                   required
                 />
-                {errors.password && (
-                  <p className="text-xs text-red-600 mt-1">{errors.password}</p>
-                )}
+                {errors.password && <p className="text-xs text-red-600 mt-1">{errors.password}</p>}
               </div>
 
               {/* Confirm Password */}
               <div>
-                <label
-                  htmlFor="confirmPassword"
-                  className="block text-sm mb-2 font-medium"
-                >
+                <label htmlFor="confirmPassword" className="block text-sm mb-2 font-medium">
                   Confirm Password
                 </label>
                 <input
                   type="password"
                   id="confirmPassword"
-                  name="confirmPassword"
                   value={formData.confirmPassword}
                   onChange={handleChange('confirmPassword')}
                   className={`py-3 px-4 block w-full border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
@@ -270,9 +240,7 @@ const Register: React.FC = () => {
                   required
                 />
                 {errors.confirmPassword && (
-                  <p className="text-xs text-red-600 mt-1">
-                    {errors.confirmPassword}
-                  </p>
+                  <p className="text-xs text-red-600 mt-1">{errors.confirmPassword}</p>
                 )}
               </div>
 
@@ -280,7 +248,6 @@ const Register: React.FC = () => {
               <div className="flex items-start">
                 <input
                   id="terms"
-                  name="terms"
                   type="checkbox"
                   className="shrink-0 mt-0.5 border-gray-200 rounded text-blue-600 focus:ring-blue-500"
                   required

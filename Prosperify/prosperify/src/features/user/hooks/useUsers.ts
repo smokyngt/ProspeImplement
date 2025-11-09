@@ -1,238 +1,165 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { prosperify } from '@/core/ProsperifyClient';
-import{ useAuthStore }from '@/features/auth/store/AuthStore';
-import type {
-  CreateUserPayload,
-  RoleMutationPayload,
-  UpdateUserPayload,
-  UserSummary,
-  UsersListParams,
-} from '@/features/user/types/types';
+import { useAuthStore } from '@/features/auth/store/AuthStore';
 
-// @deprecated Préférez les types de '@/features/user/types'.
-export type { UserSummary, UsersListParams } from '@/features/user/types/types';
-
-const userKeys = {
+/* ════════════════════════════════════════════════════════════════
+   Query Keys
+════════════════════════════════════════════════════════════════ */
+export const userKeys = {
   all: ['users'] as const,
-  list: (params: UsersListParams = {}) => ['users', 'list', params] as const,
-  detail: (id: string) => ['users', id] as const,
-  scopes: (id: string) => ['users', id, 'scopes'] as const,
+  lists: () => [...userKeys.all, 'list'] as const,
+  list: (params: any = {}) => [...userKeys.lists(), params] as const,
+  details: () => [...userKeys.all, 'detail'] as const,
+  detail: (id: string) => [...userKeys.details(), id] as const,
+  scopes: (id: string) => [...userKeys.detail(id), 'scopes'] as const,
 };
 
-// -----------------------------------------------------------------------------
-// 📋 QUERIES (Récupération de données)
-// -----------------------------------------------------------------------------
-
-/**
- * ✅ Liste tous les utilisateurs avec filtres et pagination
- */
-export function useUsers(params: UsersListParams = {}) {
-  return useQuery({
-    queryKey: userKeys.list(params),
-    queryFn: async () => {
-      const res = await prosperify.users.postV1UsersList(params) as unknown as {
-        data?: {
-          users: UserSummary[];
-          total?: number;
-        };
-      };
-      return {
-        users: res.data?.users ?? [],
-        total: res.data?.total ?? res.data?.users?.length ?? 0,
-      };
-    },
-    staleTime: 5 * 60 * 1000,
-  });
+/* ════════════════════════════════════════════════════════════════
+   Helpers internes
+════════════════════════════════════════════════════════════════ */
+function extract<T = any>(res: any, key: string): T | undefined {
+  return (res?.data && (res.data as Record<string, any>)[key]) as T | undefined;
 }
 
-/**
- * ✅ Récupère un utilisateur spécifique par ID
- */
-export function useUser(id: string) {
-  return useQuery({
-    queryKey: userKeys.detail(id),
-    queryFn: async () => {
-      const res = await prosperify.users.getV1Users(id) as {
-        data?: { user?: UserSummary };
-      };
-      return res.data?.user ?? null;
-    },
-    enabled: Boolean(id),
-    staleTime: 5 * 60 * 1000,
-  });
-}
-
-/**
- * ✅ Récupère les permissions (scopes) d'un utilisateur
- */
-export function useUserScopes(id: string) {
-  return useQuery({
-    queryKey: userKeys.scopes(id),
-    queryFn: async () => {
-      const res = await prosperify.users.getV1UsersScopes(id) as {
-        data?: { scopes?: string[] };
-      };
-      return res.data?.scopes ?? [];
-    },
-    enabled: Boolean(id),
-    staleTime: 5 * 60 * 1000,
-  });
-}
-
-// -----------------------------------------------------------------------------
-// 🔧 MUTATIONS (Création, modification, suppression)
-// -----------------------------------------------------------------------------
-
-/**
- * ✅ Créer un nouvel utilisateur
- */
-export function useCreateUser() {
+/* ════════════════════════════════════════════════════════════════
+   Hook Principal
+════════════════════════════════════════════════════════════════ */
+export function useUsers() {
   const queryClient = useQueryClient();
+  const { user: currentUser } = useAuthStore();
 
-  return useMutation({
-    mutationFn: async (payload: CreateUserPayload) => {
-      const res = await prosperify.users.postV1UsersNew(payload) as {
-        data?: { user?: UserSummary };
-      };
-      return res.data?.user ?? null;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: userKeys.all });
-    },
-    onError: (err) => console.error('[useCreateUser]', err),
-  });
-}
+  return {
+    /* ════════════════════════════════════════════════════════════════
+       QUERIES
+    ════════════════════════════════════════════════════════════════ */
 
-/**
- * ✅ Modifier un utilisateur existant
- */
-export function useUpdateUser() {
-  const queryClient = useQueryClient();
+    /** 🔍 Liste des utilisateurs */
+    useList: (params?: { limit?: number; order?: 'asc' | 'desc'; page?: number; roleId?: string }) =>
+      useQuery({
+        queryKey: userKeys.list(params),
+        queryFn: async () => {
+          const res = await prosperify.users.postV1UsersList(params);
+          const users = extract<any[]>(res, 'users') ?? [];
+          return users;
+        },
+        staleTime: 5 * 60 * 1000,
+      }),
 
-  return useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: UpdateUserPayload }) => {
-      const res = await prosperify.users.putV1Users(id, data) as {
-        data?: { success?: boolean };
-      };
-      return res.data?.success ?? false;
-    },
-    onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: userKeys.detail(vars.id) });
-      queryClient.invalidateQueries({ queryKey: userKeys.all });
-    },
-    onError: (err) => console.error('[useUpdateUser]', err),
-  });
-}
+    /** 🔍 Détail d’un utilisateur */
+    useDetail: (id: string, enabled = true) =>
+      useQuery({
+        queryKey: userKeys.detail(id),
+        queryFn: async () => {
+          const res = await prosperify.users.getV1Users(id);
+          const user = extract<any>(res, 'user');
+          return user;
+        },
+        enabled: !!id && enabled,
+        staleTime: 5 * 60 * 1000,
+      }),
 
-/**
- * ✅ Supprimer un utilisateur
- */
-export function useDeleteUser() {
-  const queryClient = useQueryClient();
+    /** 🔍 Scopes d’un utilisateur */
+    useScopes: (id: string, enabled = true) =>
+      useQuery({
+        queryKey: userKeys.scopes(id),
+        queryFn: async () => {
+          const res = await prosperify.users.getV1UsersScopes(id);
+          const scopes = extract<string[]>(res, 'scopes') ?? [];
+          return scopes;
+        },
+        enabled: !!id && enabled,
+        staleTime: 5 * 60 * 1000,
+      }),
 
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const res = await prosperify.users.deleteV1Users(id) as {
-        data?: { success?: boolean };
-      };
-      if (!res.data?.success) throw new Error('Delete failed');
-      return id;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: userKeys.all }),
-    onError: (err) => console.error('[useDeleteUser]', err),
-  });
-}
+    /** 👤 Utilisateur courant (moi) */
+    useMe: () =>
+      useQuery({
+        queryKey: ['auth', 'me'],
+        queryFn: async () => {
+          if (!currentUser?.id) throw new Error('No user ID in store');
+          const res = await prosperify.users.getV1Users(currentUser.id);
+          const user = extract<any>(res, 'user');
+          return user;
+        },
+        enabled: !!currentUser?.id,
+        staleTime: 5 * 60 * 1000,
+      }),
 
-/**
- * ✅ Ajouter un rôle à un utilisateur
- */
-export function useAddUserRole() {
-  const queryClient = useQueryClient();
+    /* ════════════════════════════════════════════════════════════════
+       MUTATIONS
+    ════════════════════════════════════════════════════════════════ */
 
-  return useMutation({
-    mutationFn: async (payload: RoleMutationPayload) => {
-      const res = await prosperify.users.postV1UsersRoles(payload.userId, {
-        roleId: payload.roleId,
-      }) as { data?: { success?: boolean } };
-      return res.data?.success ?? false;
-    },
-    onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: userKeys.detail(vars.userId) });
-      queryClient.invalidateQueries({ queryKey: userKeys.scopes(vars.userId) });
-    },
-    onError: (err) => console.error('[useAddUserRole]', err),
-  });
-}
+    /** ➕ Créer un utilisateur (admin UI) */
+    useCreate: () =>
+      useMutation({
+        mutationFn: async (data: { email: string; name: string; password: string }) => {
+          const res = await prosperify.users.postV1UsersNew(data);
+          const user = extract<any>(res, 'user');
+          return user;
+        },
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: userKeys.lists() }),
+      }),
 
-/**
- * ✅ Retirer un rôle à un utilisateur
- */
-export function useRemoveUserRole() {
-  const queryClient = useQueryClient();
+    /** ✏️ Mettre à jour un utilisateur */
+    useUpdate: (id: string) =>
+      useMutation({
+        mutationFn: async (data: {
+          email?: string;
+          name?: string;
+          password?: string;
+          preferences?: { language?: string; theme?: 'light' | 'dark' | 'auto' };
+          verified?: boolean;
+        }) => {
+          const res = await prosperify.users.putV1Users(id, data);
+          const result = extract<{ success?: boolean }>(res, 'success');
+          return result;
+        },
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: userKeys.detail(id) });
+          queryClient.invalidateQueries({ queryKey: userKeys.lists() });
+          if (id === currentUser?.id) {
+            queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
+          }
+        },
+      }),
 
-  return useMutation({
-    mutationFn: async (payload: RoleMutationPayload) => {
-      const res = await prosperify.users.deleteV1UsersRoles(payload.userId, payload.roleId) as {
-        data?: { success?: boolean };
-      };
-      return res.data?.success ?? false;
-    },
-    onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: userKeys.detail(vars.userId) });
-      queryClient.invalidateQueries({ queryKey: userKeys.scopes(vars.userId) });
-    },
-    onError: (err) => console.error('[useRemoveUserRole]', err),
-  });
-}
+    /** ❌ Supprimer un utilisateur */
+    useDelete: () =>
+      useMutation({
+        mutationFn: async (id: string) => {
+          await prosperify.users.deleteV1Users(id);
+          return id;
+        },
+        onSuccess: (deletedId) => {
+          queryClient.removeQueries({ queryKey: userKeys.detail(deletedId) });
+          queryClient.invalidateQueries({ queryKey: userKeys.lists() });
+        },
+      }),
 
-// -----------------------------------------------------------------------------
-// 🔐 AUTHENTIFICATION
-// -----------------------------------------------------------------------------
+    /** 🎭 Ajouter un rôle à un utilisateur */
+    useAddRole: (userId: string) =>
+      useMutation({
+        mutationFn: async (roleId: string) => {
+          await prosperify.users.postV1UsersRoles(userId, { roleId });
+          return { userId, roleId };
+        },
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: userKeys.detail(userId) });
+          queryClient.invalidateQueries({ queryKey: userKeys.scopes(userId) });
+        },
+      }),
 
-/**
- * ✅ Connexion utilisateur (login)
- */
-export function useLogin() {
-  const queryClient = useQueryClient();
-  const setAuthData = useAuthStore((s) => s.setAuthData);
-
-  return useMutation({
-    mutationFn: async (credentials: { email: string; password: string }) => {
-      const res = await prosperify.users.postV1UsersLogin(credentials) as unknown as {
-        data?: {
-          accessToken: string;
-          refreshToken?: string;
-          user?: UserSummary;
-          apiKey?: string;
-        };
-      };
-      return res.data;
-    },
-    onSuccess: (data) => {
-      if (data?.user && data.accessToken) {
-        setAuthData(
-          data.user,
-          data.accessToken,
-          data.refreshToken ?? null,
-          data.apiKey ?? null
-        );
-      }
-      queryClient.invalidateQueries({ queryKey: ['current-user'] });
-      queryClient.invalidateQueries({ queryKey: userKeys.all });
-    },
-    onError: (err) => console.error('[useLogin]', err),
-  });
-}
-
-/**
- * ✅ Déconnexion utilisateur (logout)
- */
-export function useLogout() {
-  const queryClient = useQueryClient();
-  const logout = useAuthStore.getState().logout;
-
-  return async () => {
-    await logout();
-    queryClient.clear();
+    /** 🚫 Retirer un rôle d’un utilisateur */
+    useRemoveRole: (userId: string) =>
+      useMutation({
+        mutationFn: async (roleId: string) => {
+          await prosperify.users.deleteV1UsersRoles(userId, roleId);
+          return { userId, roleId };
+        },
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: userKeys.detail(userId) });
+          queryClient.invalidateQueries({ queryKey: userKeys.scopes(userId) });
+        },
+      }),
   };
 }

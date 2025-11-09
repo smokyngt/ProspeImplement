@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
-import { useDeleteUser } from '../../hooks/useUsers';
+import { useUsers } from '../../hooks/useUsers'; // ✅ on importe le hook principal
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Trash2 } from 'lucide-react';
 
 const DeleteAccountContent: React.FC = () => {
   const { data: currentUser } = useCurrentUser();
-  const deleteUser = useDeleteUser();
+  const { useDelete } = useUsers(); // ✅ on récupère le sous-hook depuis useUsers()
+  const deleteUser = useDelete();   // ✅ on l’instancie ici
   const navigate = useNavigate();
 
   const [confirmText, setConfirmText] = useState('');

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { prosperify } from '@/core/ProsperifyClient';
 
+
 // ✅ Type User cohérent avec le SDK
 export interface AuthUser {
   id: string;
@@ -152,33 +153,34 @@ export const useAuthStore = create<AuthState>()(
       /* ════════════════════════════════════════════════════════════════
          REFRESH ACCESS TOKEN
       ════════════════════════════════════════════════════════════════ */
-      refreshAccessToken: async () => {
-        const refreshToken = get().refreshToken;
-        if (!refreshToken) {
-          throw new Error('No refresh token available');
-        }
+refreshAccessToken: async () => {
+  const refreshToken = get().refreshToken;
+  if (!refreshToken) {
+    throw new Error('No refresh token available');
+  }
 
-        try {
-          const res = await prosperify.auth.postV1AuthTokenRefresh({ refreshToken });
-          const newToken = res?.data?.accessToken;
+  try {
+    const res = await prosperify.auth.postV1AuthTokenRefresh({ refreshToken });
 
-          if (!newToken) {
-            throw new Error('Invalid refresh response');
-          }
+    // ✅ On cast la structure renvoyée à un type plus précis
+    const data = res?.data as { accessToken?: string | null };
 
-          get().updateToken(newToken);
-        } catch (error: any) {
-          get().clearAuth();
-          throw error;
-        }
-      },
+    if (!data || !data.accessToken) {
+      throw new Error('Invalid refresh response');
+    }
 
+    get().updateToken(data.accessToken);
+  } catch (error: any) {
+    get().clearAuth();
+    throw error;
+  }
+},
       /* ════════════════════════════════════════════════════════════════
          VERIFY EMAIL
       ════════════════════════════════════════════════════════════════ */
       verifyEmail: async (email: string, otp: string) => {
         try {
-          const res = await prosperify.auth.postV1AuthEmailVerify({ email, otp });
+          await prosperify.auth.postV1AuthEmailVerify({ email, otp });
 
           const currentUser = get().user;
           if (currentUser) {
@@ -188,10 +190,6 @@ export const useAuthStore = create<AuthState>()(
                 verified: true,
               },
             });
-          }
-
-          if (!res.data?.success) {
-            throw new Error('Email verification failed');
           }
         } catch (error: any) {
           console.error('❌ Email verification error:', error);
@@ -206,7 +204,7 @@ export const useAuthStore = create<AuthState>()(
         try {
           const res = await prosperify.auth.postV1AuthEmailSend({ email });
 
-          if (!res.data?.success) {
+          if (!res.data) {
             throw new Error('Failed to send verification email');
           }
         } catch (error: any) {

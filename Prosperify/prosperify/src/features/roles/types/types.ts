@@ -36,5 +36,22 @@ export interface RoleMutationPayload {
   assistants?: Array<{ id: string; scopes: AssistantScope[] }>;
 }
 
+// ========================================
+// API RESPONSES (alignés sur le SDK OpenAPI)
+// ========================================
+
+export interface RoleListResponse {
+  roles: Role[];
+  total?: number;
+}
+
+export interface RoleDetailResponse {
+  role: Role;
+}
+
+export interface RoleCreateResponse {
+  role: Role;
+}
+
 // @deprecated Les hooks réexportaient ces types, conserver cet alias.
 export type DeprecatedRoleScope = RoleScope;

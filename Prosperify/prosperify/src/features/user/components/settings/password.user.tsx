@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import  { useCurrentUser } from '../../hooks/useCurrentUser';
-import  { useUpdateUser } from '../../hooks/useUsers';
+import { useCurrentUser } from '../../hooks/useCurrentUser';
+import { useUsers } from '../../hooks/useUsers'; // ✅ correction ici
 import { Lock, Eye, EyeOff, Shield } from 'lucide-react';
 
 const PasswordContent: React.FC = () => {
   const { data: currentUser } = useCurrentUser();
-  const updateUser = useUpdateUser();
+  const { useUpdate } = useUsers(); // ✅ on récupère le sous-hook
+  const updateUser = useUpdate(currentUser?.id || ''); // ✅ on instancie avec l'id utilisateur
 
   const [formData, setFormData] = useState({
     currentPassword: '',
@@ -36,7 +37,6 @@ const PasswordContent: React.FC = () => {
 
     const newErrors: Record<string, string> = {};
 
-    // Validation
     if (!formData.currentPassword) {
       newErrors['currentPassword'] = 'Le mot de passe actuel est requis';
     }
@@ -57,10 +57,7 @@ const PasswordContent: React.FC = () => {
 
     try {
       await updateUser.mutateAsync({
-        id: currentUser.id,
-        data: {
-          password: formData.newPassword,
-        },
+        password: formData.newPassword,
       });
 
       setFormData({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -169,7 +166,9 @@ const PasswordContent: React.FC = () => {
             {showPasswords.new ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
           </button>
         </div>
-        {errors['newPassword'] && <p className="text-xs text-red-600 mt-1">{errors['newPassword']}</p>}
+        {errors['newPassword'] && (
+          <p className="text-xs text-red-600 mt-1">{errors['newPassword']}</p>
+        )}
 
         {/* Password Strength */}
         {formData.newPassword && (

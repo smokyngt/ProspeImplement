@@ -1,3 +1,4 @@
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { prosperify } from '@/core/ProsperifyClient';
 import type {
@@ -12,7 +13,7 @@ import type {
   AssistantListParams,
   MetricsListResponse,
   MetricsMap,
-} from '../types';
+} from '../types/assistantTypes';
 
 // ========================================
 // CLÉS DE CACHE
@@ -42,63 +43,64 @@ export function useAssistants() {
     /**
      * Liste des assistants
      */
-    useList: (params: AssistantListParams = {}) => {
-      return useQuery({
-        queryKey: assistantKeys.list(params),
-        queryFn: async () => {
-          const response = await prosperify.assistants.postV1AssistantsList({
-            limit: 100,
-            order: 'desc',
-            ...params,
-          });
-
-          const data = response?.data as unknown as AssistantsListResponse;
-          const assistants = Array.isArray(data?.assistants) ? data.assistants : [];
-
-          return {
-            assistants,
-            total: data?.total ?? assistants.length,
-          };
-        },
-        staleTime: 5 * 60 * 1000,
-        gcTime: 30 * 60 * 1000,
+  useList: (params: AssistantListParams = {}) =>
+  useQuery({
+    queryKey: assistantKeys.list(params),
+    queryFn: async (): Promise<AssistantsListResponse> => {
+      const response = await prosperify.assistants.postV1AssistantsList({
+        limit: 100,
+        order: 'desc',
+        ...params,
       });
+
+      // ✅ Extraction conforme au SDK et à ton interface
+      const assistants: AssistantSummary[] = Array.isArray(response?.data?.assistants)
+        ? response.data.assistants
+        : [];
+
+      const total = response?.data?.total ?? assistants.length;
+
+      // ✅ Retourne un objet bien typé
+      return {
+        assistants,
+        total,
+        hasMore: total > assistants.length,
+      };
     },
+    staleTime: 5 * 60 * 1000, // cache 5 min
+    gcTime: 30 * 60 * 1000,   // garbage collect 30 min
+  }),
 
     /**
      * Détail d'un assistant
      */
-    useDetail: (id: string, enabled: boolean = true) => {
-      return useQuery({
+    useDetail: (id: string, enabled = true) =>
+      useQuery({
         queryKey: assistantKeys.detail(id),
-        queryFn: async () => {
-          const response = await prosperify.assistants.getV1Assistants(id);
-          const data = response?.data as unknown as AssistantDetailResponse;
+        enabled: Boolean(id) && enabled,
+        queryFn: async (): Promise<AssistantDetail | null> => {
+          const res = await prosperify.assistants.getV1Assistants(id);
+          const data = res?.data as { assistant?: AssistantDetail };
           return data?.assistant ?? null;
         },
-        enabled: Boolean(id) && enabled,
         staleTime: 5 * 60 * 1000,
-      });
-    },
+      }),
 
     /**
-     * Settings d'un assistant
+     * Settings d'un assistant (décrits dans la description JSON)
      */
-    useSettings: (assistantId: string, enabled: boolean = true) => {
-      return useQuery({
+    useSettings: (assistantId: string, enabled = true) =>
+      useQuery({
         queryKey: assistantKeys.settings(assistantId),
-        queryFn: async () => {
-          const response = await prosperify.assistants.getV1Assistants(assistantId);
-          const data = response?.data as unknown as AssistantDetailResponse;
+        enabled: Boolean(assistantId) && enabled,
+        queryFn: async (): Promise<AssistantSettings> => {
+          const res = await prosperify.assistants.getV1Assistants(assistantId);
+          const data = res?.data as { assistant?: AssistantDetail };
           const assistant = data?.assistant;
 
-          if (!assistant) {
-            throw new Error('Assistant not found');
-          }
+          if (!assistant) throw new Error('Assistant not found');
 
-          // Parse metadata ou description
           let parsedSettings: Partial<AssistantSettings> = {};
-
           if (assistant.description) {
             try {
               parsedSettings = JSON.parse(assistant.description);
@@ -113,30 +115,26 @@ export function useAssistants() {
             precision: parsedSettings.precision ?? 0.5,
             notifications: parsedSettings.notifications ?? false,
             externalSources: parsedSettings.externalSources ?? false,
-          } satisfies AssistantSettings;
+          };
         },
-        enabled: Boolean(assistantId) && enabled,
         staleTime: 5 * 60 * 1000,
-      });
-    },
+      }),
 
     /**
      * Métriques dashboard
      */
-    useMetrics: (params: { limit?: number } = {}) => {
-      return useQuery({
+    useMetrics: (params: { limit?: number } = {}) =>
+      useQuery({
         queryKey: assistantKeys.metricsList(params),
-        queryFn: async () => {
-          const response = await prosperify.metrics.postV1MetricsList({
+        queryFn: async (): Promise<MetricsMap> => {
+          const res = await prosperify.metrics.postV1MetricsList({
             limit: 10,
-            order: 'desc',
             ...params,
           });
 
-          const data = response?.data as unknown as MetricsListResponse;
+          const data = res?.data as unknown as MetricsListResponse;
           const items = Array.isArray(data?.items) ? data.items : [];
 
-          // Transformation en objet clé-valeur
           const metricsMap: MetricsMap = {};
           items.forEach((metric) => {
             const key = metric.name?.toLowerCase() || 'unknown';
@@ -150,9 +148,8 @@ export function useAssistants() {
           return metricsMap;
         },
         retry: false,
-        staleTime: 60_000, // 1 minute
-      });
-    },
+        staleTime: 60_000,
+      }),
 
     // ========================================
     // ➕ MUTATIONS (Écriture)
@@ -161,77 +158,74 @@ export function useAssistants() {
     /**
      * Créer un assistant
      */
-    useCreate: () => {
-      return useMutation({
-        mutationFn: async (payload: AssistantCreatePayload) => {
-          const response = await prosperify.assistants.postV1AssistantsNew(payload);
-          const data = response?.data as unknown as AssistantCreateResponse;
+    useCreate: () =>
+      useMutation({
+        mutationFn: async (payload: AssistantCreatePayload): Promise<AssistantSummary> => {
+          // Le SDK ne tape que { name }, mais on étend localement pour description/instructions
+          const res = await prosperify.assistants.postV1AssistantsNew({
+            name: payload.name,
+            // champs additionnels (backend les supporte probablement)
+            ...(payload.description && { description: payload.description }),
+            ...(payload.instructions && { instructions: payload.instructions }),
+          } as any);
+
+          const data = res?.data as unknown as AssistantCreateResponse;
           const assistant = data?.assistant;
 
-          if (!assistant) {
-            throw new Error('Failed to create assistant');
-          }
-
+          if (!assistant) throw new Error('Failed to create assistant');
           return assistant;
         },
-        onSuccess: (newAssistant) => {
+        onSuccess: (assistant) => {
           queryClient.invalidateQueries({ queryKey: assistantKeys.lists() });
-          queryClient.setQueryData(assistantKeys.detail(newAssistant.id), {
-            assistant: newAssistant,
-          });
+          queryClient.setQueryData(assistantKeys.detail(assistant.id), assistant);
         },
-      });
-    },
+      }),
 
     /**
      * Mettre à jour un assistant
      */
-    useUpdate: (id: string) => {
-      return useMutation({
-        mutationFn: async (payload: AssistantUpdatePayload) => {
-          const response = await prosperify.assistants.putV1Assistants(id, payload);
-          const data = response?.data as unknown as AssistantDetailResponse;
-          return data?.assistant;
+    useUpdate: (id: string) =>
+      useMutation({
+        mutationFn: async (payload: AssistantUpdatePayload): Promise<AssistantDetail | null> => {
+          const res = await prosperify.assistants.putV1Assistants(id, payload);
+          const data = res?.data as unknown as AssistantDetailResponse;
+          return data?.assistant ?? null;
         },
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: assistantKeys.lists() });
           queryClient.invalidateQueries({ queryKey: assistantKeys.detail(id) });
+          queryClient.invalidateQueries({ queryKey: assistantKeys.lists() });
         },
-      });
-    },
+      }),
 
     /**
      * Mettre à jour les settings
      */
-    useUpdateSettings: (assistantId: string) => {
-      return useMutation({
+    useUpdateSettings: (assistantId: string) =>
+      useMutation({
         mutationFn: async (settings: AssistantSettings) => {
-          const response = await prosperify.assistants.putV1Assistants(assistantId, {
+          return await prosperify.assistants.putV1Assistants(assistantId, {
             description: JSON.stringify(settings),
           });
-          return response;
         },
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: assistantKeys.settings(assistantId) });
           queryClient.invalidateQueries({ queryKey: assistantKeys.detail(assistantId) });
         },
-      });
-    },
+      }),
 
     /**
      * Supprimer un assistant
      */
-    useDelete: () => {
-      return useMutation({
-        mutationFn: async (id: string) => {
+    useDelete: () =>
+      useMutation({
+        mutationFn: async (id: string): Promise<string> => {
           await prosperify.assistants.deleteV1Assistants(id);
           return id;
         },
-        onSuccess: (deletedId) => {
+        onSuccess: (id) => {
           queryClient.invalidateQueries({ queryKey: assistantKeys.lists() });
-          queryClient.removeQueries({ queryKey: assistantKeys.detail(deletedId) });
+          queryClient.removeQueries({ queryKey: assistantKeys.detail(id) });
         },
-      });
-    },
+      }),
   };
 }

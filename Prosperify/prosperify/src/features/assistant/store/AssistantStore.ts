@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { prosperify } from '@/core/ProsperifyClient';
 import { useAuthStore } from '@/features/auth/store/AuthStore';
-import type { AssistantSummary } from '@/features/assistant/types';
+import type { AssistantSummary } from '@/features/assistant/types/assistantTypes';
 
 // ✅ Type pour la réponse de l'API assistants/list
 interface AssistantsListResponse {

@@ -6,12 +6,14 @@ import type {
   AssistantScope,
   RoleListParams,
   RoleMutationPayload,
+  RoleCreateResponse,
+  RoleDetailResponse,
+  RoleListResponse,
 } from '../types/types';
 
 /* ════════════════════════════════════════════════════════════════
    Query Keys
 ════════════════════════════════════════════════════════════════ */
-
 export const roleKeys = {
   all: ['roles'] as const,
   lists: () => [...roleKeys.all, 'list'] as const,
@@ -23,7 +25,6 @@ export const roleKeys = {
 /* ════════════════════════════════════════════════════════════════
    Hook Principal
 ════════════════════════════════════════════════════════════════ */
-
 export function useRoles() {
   const queryClient = useQueryClient();
 
@@ -31,93 +32,80 @@ export function useRoles() {
     // ========================================
     // 📥 QUERIES (Lecture)
     // ========================================
+useList: (params: RoleListParams = {}) => {
+  return useQuery({
+    queryKey: roleKeys.list(params),
+    queryFn: async () => {
+      const response = await prosperify.roles.postV1RolesList(params);
 
-    /**
-     * Liste des rôles
-     */
-    useList: (params: RoleListParams = {}) => {
-      return useQuery({
-        queryKey: roleKeys.list(params),
-        queryFn: async () => {
-          const response = await prosperify.roles.postV1RolesList(params);
-          const roles = (response?.data?.roles ?? []) as Role[];
-          return roles;
-        },
-        staleTime: 5 * 60 * 1000,
-        gcTime: 30 * 60 * 1000,
-      });
+      const data = response.data as RoleListResponse | undefined;
+      const roles = data?.roles ?? [];
+
+      return roles;
     },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+  });
+},
 
-    /**
-     * Détail d'un rôle
-     */
-    useDetail: (id: string, enabled = true) => {
-      return useQuery({
-        queryKey: roleKeys.detail(id),
-        queryFn: async () => {
-          const response = await prosperify.roles.getV1Roles(id);
-          const role = response?.data?.role as Role | undefined;
 
-          if (!role) {
-            throw new Error('Role not found');
-          }
+  useDetail: (id: string, enabled = true) => {
+  return useQuery({
+    queryKey: roleKeys.detail(id),
+    queryFn: async () => {
+      const response = await prosperify.roles.getV1Roles(id);
 
-          return role;
-        },
-        enabled: !!id && enabled,
-        staleTime: 5 * 60 * 1000,
-      });
+      // ✅ Cast propre : on sait que response.data contient { role: Role }
+      const data = response.data as RoleDetailResponse | undefined;
+      const role = data?.role;
+
+      if (!role) {
+        throw new Error('Role not found');
+      }
+
+      return role;
     },
-
+    enabled: !!id && enabled,
+    staleTime: 5 * 60 * 1000,
+  });
+},
     // ========================================
     // ➕ MUTATIONS (Écriture)
     // ========================================
 
-    /**
-     * Créer un rôle
-     */
-    useCreate: () => {
-      return useMutation({
-        mutationFn: async (payload: RoleMutationPayload) => {
-          const response = await prosperify.roles.postV1RolesNew(payload);
-          const role = response?.data?.role as Role | undefined;
+   useCreate: () => {
+  return useMutation({
+    mutationFn: async (payload: RoleMutationPayload) => {
+      const response = await prosperify.roles.postV1RolesNew(payload);
 
-          if (!role) {
-            throw new Error('Failed to create role: Invalid API response');
-          }
+      const data = response.data as RoleCreateResponse | undefined;
+      const role = data?.role;
 
-          return role;
-        },
-        onSuccess: (newRole) => {
-          // ✅ Invalider toutes les listes
-          queryClient.invalidateQueries({ queryKey: roleKeys.lists() });
+      if (!role) {
+        throw new Error('Failed to create role: Invalid API response');
+      }
 
-          // ✅ Mettre en cache le nouveau rôle
-          queryClient.setQueryData<Role>(roleKeys.detail(newRole.id), newRole);
-        },
-      });
+      return role;
     },
+    onSuccess: (newRole) => {
+      queryClient.invalidateQueries({ queryKey: roleKeys.lists() });
+      queryClient.setQueryData<Role>(roleKeys.detail(newRole.id), newRole);
+    },
+  });
+},
 
-    /**
-     * Mettre à jour un rôle
-     */
     useUpdate: (id: string) => {
       return useMutation({
         mutationFn: async (payload: Partial<RoleMutationPayload>) => {
-          const response = await prosperify.roles.putV1Roles(id, payload);
-          
-          // ⚠️ L'API retourne { data: { success: true } }, pas le rôle complet
-          // On invalide le cache pour forcer un refetch
+          await prosperify.roles.putV1Roles(id, payload);
+          // ⚠️ L’API ne retourne pas le rôle complet
           return { id, ...payload };
         },
         onMutate: async (payload) => {
-          // ✅ Annuler les requêtes en cours
           await queryClient.cancelQueries({ queryKey: roleKeys.detail(id) });
 
-          // ✅ Sauvegarder l'état précédent
           const previousRole = queryClient.getQueryData<Role>(roleKeys.detail(id));
 
-          // ✅ Update optimiste
           if (previousRole) {
             queryClient.setQueryData<Role>(roleKeys.detail(id), {
               ...previousRole,
@@ -127,23 +115,18 @@ export function useRoles() {
 
           return { previousRole };
         },
-        onError: (err, payload, context) => {
-          // ✅ Rollback en cas d'erreur
+        onError: (err, _payload, context) => {
           if (context?.previousRole) {
             queryClient.setQueryData(roleKeys.detail(id), context.previousRole);
           }
         },
         onSuccess: () => {
-          // ✅ Invalider les listes et le détail
           queryClient.invalidateQueries({ queryKey: roleKeys.lists() });
           queryClient.invalidateQueries({ queryKey: roleKeys.detail(id) });
         },
       });
     },
 
-    /**
-     * Supprimer un rôle
-     */
     useDelete: () => {
       return useMutation({
         mutationFn: async (id: string) => {
@@ -151,10 +134,7 @@ export function useRoles() {
           return id;
         },
         onSuccess: (deletedId) => {
-          // ✅ Retirer du cache
           queryClient.removeQueries({ queryKey: roleKeys.detail(deletedId) });
-
-          // ✅ Invalider les listes
           queryClient.invalidateQueries({ queryKey: roleKeys.lists() });
         },
       });

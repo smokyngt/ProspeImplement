@@ -1,7 +1,6 @@
 import React from 'react';
 import { useAssistants } from '@/features/assistant/hook/useAssistants';
 import MetricCard from '@/components/ui/base/metricCard/metricCard';
-import Charts from '../components/chart.assistant';
 import AlertError from '@/components/ui/base/Alert/alertError';
 
 const IndexAssistant: React.FC = () => {
@@ -80,10 +79,6 @@ const IndexAssistant: React.FC = () => {
             }
           />
         </div>
-      </div>
-
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mt-8">
-        <Charts />
       </div>
     </section>
   );
