@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { prosperify } from '@/core/ProsperifyClient';
-import useAuthStore from '../store/AuthStore';
+import {useAuthStore} from '../store/AuthStore';
 
 const VerifyEmail: React.FC = () => {
   const navigate = useNavigate();
@@ -16,7 +16,7 @@ const VerifyEmail: React.FC = () => {
 
       // ✅ Mettre à jour le user dans Zustand
       if (user) {
-        setUser({ ...user, emailVerified: true });
+        setUser({ ...user, emailVerified: true } as typeof user);
       }
 
       return { message: res.event?.code || 'Email verified successfully' };

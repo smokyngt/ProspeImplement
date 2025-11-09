@@ -1,35 +1,23 @@
 import React, { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { prosperify } from '@/core/ProsperifyClient';
-import useAuthStore from '../store/AuthStore';
+import { useAuth } from '../hooks/useAuth';
 import AlertSuccess from '@/components/ui/base/Alert/alertSuccess';
 import AlertError from '@/components/ui/base/Alert/alertError';
 
 const EmailVerificationBanner: React.FC = () => {
-  const { user } = useAuthStore();
+  const { user, resendVerificationMutation } = useAuth();
   const [success, setSuccess] = useState<string | null>(null);
   const [isDismissed, setIsDismissed] = useState(false);
 
-  // Ne pas afficher si l'email est déjà vérifié ou si le banner est fermé
-  if (!user || user.emailVerified || isDismissed) {
-    return null;
-  }
-
-  // ✅ React Query mutation pour renvoyer l'email
-  const resendEmailMutation = useMutation({
-    mutationFn: async () => {
-      const res = await prosperify.auth.postV1AuthEmailSend();
-      return { message: res.event?.code || 'Verification email sent!' };
-    },
-    onSuccess: (data) => {
-      setSuccess(data.message);
-      // Auto-dismiss success message après 5 secondes
+  const handleResend = async () => {
+    if (!user?.email) return;
+    
+    try {
+      await resendVerificationMutation.mutateAsync(user.email);
+      setSuccess('Verification email sent!');
       setTimeout(() => setSuccess(null), 5000);
-    },
-  });
-
-  const handleResend = () => {
-    resendEmailMutation.mutate();
+    } catch (error) {
+      // L'erreur est déjà gérée par la mutation
+    }
   };
 
   return (
@@ -41,11 +29,11 @@ const EmailVerificationBanner: React.FC = () => {
         </div>
       )}
       
-      {resendEmailMutation.error && (
+      {resendVerificationMutation.error && (
         <div className="fixed top-4 right-4 z-50">
           <AlertError 
-            message={(resendEmailMutation.error as Error).message || 'Failed to send verification email'} 
-            onClose={() => resendEmailMutation.reset()} 
+            message={(resendVerificationMutation.error as Error).message || 'Failed to send verification email'} 
+            onClose={() => resendVerificationMutation.reset()} 
             description="" 
           />
         </div>
@@ -76,13 +64,13 @@ const EmailVerificationBanner: React.FC = () => {
           <div className="ml-3 flex gap-2">
             <button
               onClick={handleResend}
-              disabled={resendEmailMutation.isPending}
+              disabled={resendVerificationMutation.isPending}
               className="text-sm font-medium text-yellow-700 hover:text-yellow-600 disabled:opacity-50 flex items-center gap-1"
             >
-              {resendEmailMutation.isPending && (
+              {resendVerificationMutation.isPending && (
                 <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-yellow-700"></div>
               )}
-              {resendEmailMutation.isPending ? 'Sending...' : 'Resend email'}
+              {resendVerificationMutation.isPending ? 'Sending...' : 'Resend email'}
             </button>
             <button
               onClick={() => setIsDismissed(true)}

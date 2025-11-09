@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { prosperify } from '@/core/ProsperifyClient';
+import { useAssistants } from '@/features/assistant/hook/useAssistants';
 import AlertSuccess from '@/components/ui/base/Alert/alertSuccess';
 import AlertError from '@/components/ui/base/Alert/alertError';
 
@@ -15,47 +14,18 @@ const CreateAssistantModal: React.FC<CreateAssistantModalProps> = ({
   variant = 'gradient',
   className = '',
 }) => {
-  const queryClient = useQueryClient();
+  const assistants = useAssistants();
+
+  // ✅ Mutation via le hook unique
+  const createAssistant = assistants.useCreate();
 
   // -------------------------------------------------------------
-  // 🧠 États locaux
+  // 🧠 États locaux UI uniquement
   // -------------------------------------------------------------
   const [name, setName] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-
-  // -------------------------------------------------------------
-  // 💾 React Query mutation
-  // -------------------------------------------------------------
-  const createAssistant = useMutation({
-    mutationFn: async (assistantName: string) => {
-      const res = await prosperify.assistants.postV1AssistantsNew({
-        name: assistantName.trim(),
-      });
-
-      const newAssistantId = res?.data?.assistant?.id;
-
-      if (!newAssistantId) {
-        throw new Error("ID de l'assistant non retourné par l'API.");
-      }
-
-      return { id: newAssistantId, response: res };
-    },
-    onSuccess: (data) => {
-      setSuccess('Assistant créé avec succès !');
-
-      // ✅ Invalider le cache des assistants pour rafraîchir la liste
-      queryClient.invalidateQueries({ queryKey: ['assistants'] });
-
-      setTimeout(() => {
-        setName('');
-        setSuccess(null);
-        setIsOpen(false);
-        onSuccess?.(data.id);
-      }, 1500);
-    },
-  });
 
   // -------------------------------------------------------------
   // 💾 Création d'un assistant
@@ -67,7 +37,24 @@ const CreateAssistantModal: React.FC<CreateAssistantModalProps> = ({
     }
 
     setValidationError(null);
-    await createAssistant.mutateAsync(name);
+
+    try {
+      const newAssistant = await createAssistant.mutateAsync({
+        name: name.trim(),
+      });
+
+      setSuccess('Assistant créé avec succès !');
+
+      setTimeout(() => {
+        setName('');
+        setSuccess(null);
+        setIsOpen(false);
+        onSuccess?.(newAssistant.id);
+      }, 1500);
+    } catch (error) {
+      // L'erreur est déjà gérée par React Query
+      console.error('Create failed:', error);
+    }
   };
 
   // -------------------------------------------------------------
@@ -142,16 +129,23 @@ const CreateAssistantModal: React.FC<CreateAssistantModalProps> = ({
 
             {validationError && (
               <div className="mt-4">
-                <AlertError message={validationError} onClose={() => setValidationError(null)} description="" />
+                <AlertError
+                  message={validationError}
+                  onClose={() => setValidationError(null)}
+                  description=""
+                />
               </div>
             )}
 
             {createAssistant.error && (
               <div className="mt-4">
-                <AlertError 
-                  message={(createAssistant.error as any)?.message || "Erreur lors de la création de l'assistant."} 
-                  onClose={() => createAssistant.reset()} 
-                  description="" 
+                <AlertError
+                  message={
+                    (createAssistant.error as any)?.message ||
+                    "Erreur lors de la création de l'assistant."
+                  }
+                  onClose={() => createAssistant.reset()}
+                  description=""
                 />
               </div>
             )}

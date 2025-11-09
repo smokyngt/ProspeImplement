@@ -1,8 +1,7 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { prosperify } from "@/core/ProsperifyClient";
-import AlertError from "@/components/ui/base/Alert/alertError";
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAssistants } from '@/features/assistant/hook/useAssistants';
+import AlertError from '@/components/ui/base/Alert/alertError';
 
 interface DeleteContentProps {
   assistantId: string;
@@ -10,44 +9,37 @@ interface DeleteContentProps {
 
 const DeleteContent: React.FC<DeleteContentProps> = ({ assistantId }) => {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const assistants = useAssistants();
+
+  // ✅ Mutation via le hook unique
+  const deleteAssistant = assistants.useDelete();
 
   // ✅ États locaux pour l'UI uniquement
-  const [confirmText, setConfirmText] = useState("");
+  const [confirmText, setConfirmText] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
-
-  // ✅ React Query mutation pour la suppression
-  const deleteAssistant = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await prosperify.assistants.delete(id);
-      return res;
-    },
-    onSuccess: (res) => {
-      console.log("✅ Assistant supprimé :", res.event?.code);
-
-      // ✅ Invalider les caches liés
-      queryClient.invalidateQueries({ queryKey: ['assistants'] });
-      queryClient.removeQueries({ queryKey: ['assistants', assistantId] });
-
-      // ✅ Redirection après suppression réussie
-      setTimeout(() => {
-        navigate("/dashboard-orga");
-      }, 1000);
-    },
-  });
 
   // ---------------------------------------------------------------
   // 🗑️ Fonction de suppression
   // ---------------------------------------------------------------
   const handleDelete = async () => {
     // Validation de la confirmation
-    if (confirmText.toUpperCase() !== "DELETE") {
+    if (confirmText.toUpperCase() !== 'DELETE') {
       setValidationError('Veuillez taper "DELETE" pour confirmer la suppression.');
       return;
     }
 
     setValidationError(null);
-    await deleteAssistant.mutateAsync(assistantId);
+
+    try {
+      await deleteAssistant.mutateAsync(assistantId);
+
+      // ✅ Redirection après suppression réussie
+      setTimeout(() => {
+        navigate('/dashboard-orga');
+      }, 1000);
+    } catch (error) {
+      console.error('Delete failed:', error);
+    }
   };
 
   // ---------------------------------------------------------------
@@ -70,7 +62,10 @@ const DeleteContent: React.FC<DeleteContentProps> = ({ assistantId }) => {
       {deleteAssistant.error && (
         <div className="mb-4">
           <AlertError
-            message={(deleteAssistant.error as any)?.message || "Erreur lors de la suppression de l'assistant."}
+            message={
+              (deleteAssistant.error as any)?.message ||
+              "Erreur lors de la suppression de l'assistant."
+            }
             onClose={() => deleteAssistant.reset()}
             description=""
           />
@@ -81,15 +76,14 @@ const DeleteContent: React.FC<DeleteContentProps> = ({ assistantId }) => {
         🗑️ Supprimer le Chatbot
       </h3>
       <p className="text-sm text-gray-700 mb-4">
-        Cette action est{" "}
-        <strong className="text-red-600">irréversible</strong>. Toutes les
+        Cette action est <strong className="text-red-600">irréversible</strong>. Toutes les
         données, conversations et paramètres seront définitivement supprimés.
       </p>
 
       {/* ✅ Input de confirmation */}
       <div className="mb-4">
         <label className="block text-sm font-semibold text-gray-700 mb-2">
-          Pour confirmer, tapez{" "}
+          Pour confirmer, tapez{' '}
           <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded font-mono text-xs">
             DELETE
           </span>
@@ -106,7 +100,7 @@ const DeleteContent: React.FC<DeleteContentProps> = ({ assistantId }) => {
 
       <button
         onClick={handleDelete}
-        disabled={deleteAssistant.isPending || confirmText.toUpperCase() !== "DELETE"}
+        disabled={deleteAssistant.isPending || confirmText.toUpperCase() !== 'DELETE'}
         className="py-2 px-4 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
       >
         {deleteAssistant.isPending ? (
@@ -115,7 +109,7 @@ const DeleteContent: React.FC<DeleteContentProps> = ({ assistantId }) => {
             Suppression en cours...
           </>
         ) : (
-          "Supprimer définitivement"
+          'Supprimer définitivement'
         )}
       </button>
     </div>

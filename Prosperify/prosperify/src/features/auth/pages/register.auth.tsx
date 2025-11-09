@@ -4,7 +4,7 @@ import { useMutation } from '@tanstack/react-query';
 import { prosperify } from '@/core/ProsperifyClient';
 import AlertError from '@/components/ui/base/Alert/alertError';
 import AlertSuccess from '@/components/ui/base/Alert/alertSuccess';
-import useAuthStore from '../store/AuthStore';
+import {useAuthStore} from '../store/AuthStore';
 
 const Register: React.FC = () => {
   const navigate = useNavigate();

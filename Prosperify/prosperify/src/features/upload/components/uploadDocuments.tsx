@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { prosperify } from '@/core/ProsperifyClient';
+import { useUploads } from '../hooks/useUpload';
 import AlertError from '@/components/ui/base/Alert/alertError';
-import AlertSuccess from '@/components/ui/base/Alert/alertSuccess';
 
 interface Source {
   id: string;
@@ -13,76 +13,89 @@ interface Source {
   created: string;
 }
 
+// ✅ Type pour la réponse de l'API files
+interface FileItem {
+  id: string;
+  name: string;
+  status: 'active' | 'processing' | 'failed';
+  linkedAssistants?: Array<{ id: string; name: string }>;
+  createdAt: number;
+}
+
+interface FilesListResponse {
+  items: FileItem[];
+  total?: number;
+  hasMore?: boolean;
+}
+
 const Sources: React.FC = () => {
   const { id: assistantId } = useParams<{ id: string }>();
-  const queryClient = useQueryClient();
+  
+  // ✅ Hook centralisé d'upload
+  const uploads = useUploads();
+  const uploadDocuments = uploads.useUploadDocuments();
 
-  // ✅ React Query DIRECTEMENT dans le composant (pas de hook custom)
+  // ✅ Query pour récupérer les fichiers via ProsperifyClient
   const { data: sources = [], isLoading, error } = useQuery({
     queryKey: ['sources', assistantId],
     queryFn: async () => {
       if (!assistantId) return [];
 
-      const res = await prosperify.files.list({
+      // Utilise prosperify client
+      const res = await prosperify.files.postV1FilesList({
         limit: 50,
         order: 'desc',
         assistantId,
       });
 
-      return res?.data?.items?.map((item: any) => ({
+      // ✅ Extraction sécurisée avec type assertion
+      const filesData = res?.data as unknown as FilesListResponse;
+      const items = filesData?.items ?? [];
+
+      return items.map((item: FileItem) => ({
         id: item.id,
         fileName: item.name || 'Unnamed file',
         status:
-          item.status === 'active' ? 'Active' :
-          item.status === 'processing' ? 'Warning' : 'Danger',
-        portfolio: `${item.linkedAssistants?.length || 0}/5`,
+          item.status === 'active' ? 'Active' as const :
+          item.status === 'processing' ? 'Warning' as const : 
+          'Danger' as const,
+        portfolio: `${item.linkedAssistants?.length ?? 0}/5`,
         created: new Date(item.createdAt).toLocaleString('en-US', {
           day: '2-digit',
           month: 'short',
           hour: '2-digit',
           minute: '2-digit',
         }),
-      })) || [];
+      }));
     },
     enabled: !!assistantId,
     staleTime: 2 * 60 * 1000,
   });
 
-  // ✅ Upload mutation DIRECTEMENT dans le composant
-  const uploadFile = useMutation({
-    mutationFn: async (file: File) => {
-      const formData = new FormData();
-      formData.append('file', file);
-      if (assistantId) formData.append('assistantId', assistantId);
-      return await prosperify.uploads.documents.uploaded(formData);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sources', assistantId] });
-    },
-  });
-
-  // États locaux
-  const [success, setSuccess] = useState<string | null>(null);
+  // États locaux UI
   const [searchTerm, setSearchTerm] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [file, setFile] = useState<File | null>(null);
 
-  const handleFileUpload = async () => {
-    if (!file) return;
+  const handleFileUpload = () => {
+    if (!file || !assistantId) return;
 
-    try {
-      const res = await uploadFile.mutateAsync(file);
-      setSuccess(res.eventMessage || 'File uploaded successfully!');
-      setFile(null);
-      setShowUploadModal(false);
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err: any) {
-      console.error('Upload error:', err);
-    }
+    // ✅ Upload avec le hook
+    uploadDocuments.mutate(
+      { assistantId, files: [file] },
+      {
+        onSuccess: () => {
+          setFile(null);
+          setShowUploadModal(false);
+        },
+      }
+    );
   };
 
   const filteredSources = useMemo(
-    () => sources.filter((source: { fileName: string; }) => source.fileName.toLowerCase().includes(searchTerm.toLowerCase())),
+    () => sources.filter((source: Source) => 
+      source.fileName.toLowerCase().includes(searchTerm.toLowerCase())
+    ),
     [sources, searchTerm]
   );
 
@@ -95,29 +108,14 @@ const Sources: React.FC = () => {
         </p>
       </header>
 
+      {/* Error alert */}
       {error && (
         <div className="fixed top-4 right-4 z-50">
           <AlertError 
-            message={(error as Error).message || 'Error loading source files'} 
+            message={(error as any).message || 'Error loading source files'} 
             onClose={() => {}} 
             description="" 
           />
-        </div>
-      )}
-
-      {uploadFile.error && (
-        <div className="fixed top-4 right-4 z-50">
-          <AlertError 
-            message={(uploadFile.error as any)?.message || 'Error uploading file'} 
-            onClose={() => uploadFile.reset()} 
-            description="" 
-          />
-        </div>
-      )}
-
-      {success && (
-        <div className="fixed top-4 right-4 z-50">
-          <AlertSuccess message={success} onClose={() => setSuccess(null)} />
         </div>
       )}
 
@@ -132,6 +130,7 @@ const Sources: React.FC = () => {
         <div className="overflow-x-auto w-full">
           <div className="min-w-full inline-block align-middle w-10/12 max-w-4xl">
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden w-11/12">
+              {/* Toolbar */}
               <div className="px-6 py-4 flex justify-between items-center border-b border-gray-200">
                 <div className="relative max-w-sm">
                   <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
@@ -158,7 +157,7 @@ const Sources: React.FC = () => {
 
                 <button
                   onClick={() => setShowUploadModal(true)}
-                  disabled={uploadFile.isPending}
+                  disabled={uploadDocuments.isPending}
                   className="inline-flex items-center gap-x-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
                 >
                   <svg
@@ -171,10 +170,11 @@ const Sources: React.FC = () => {
                   >
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                   </svg>
-                  Upload File
+                  {uploadDocuments.isPending ? 'Uploading...' : 'Upload File'}
                 </button>
               </div>
 
+              {/* Table */}
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -186,7 +186,9 @@ const Sources: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {filteredSources.length > 0 ? (
-                    filteredSources.map((source: Source) => <SourceRow key={source.id} source={source} />)
+                    filteredSources.map((source: Source) => (
+                      <SourceRow key={source.id} source={source} />
+                    ))
                   ) : (
                     <tr>
                       <td colSpan={4} className="text-center py-6 text-sm text-gray-500">
@@ -211,7 +213,7 @@ const Sources: React.FC = () => {
       {showUploadModal && (
         <UploadModal
           file={file}
-          uploading={uploadFile.isPending}
+          uploading={uploadDocuments.isPending}
           onFileChange={(e) => setFile(e.target.files?.[0] || null)}
           onCancel={() => {
             setShowUploadModal(false);
@@ -226,7 +228,10 @@ const Sources: React.FC = () => {
 
 export default Sources;
 
-// Sous-composants (identiques à avant)
+// ════════════════════════════════════════════════════════════════
+// Sous-composants
+// ════════════════════════════════════════════════════════════════
+
 interface SourceRowProps {
   source: Source;
 }
@@ -283,6 +288,7 @@ const UploadModal: React.FC<UploadModalProps> = ({
         className="w-full border border-gray-300 rounded-lg p-2 mb-4"
         onChange={onFileChange}
         disabled={uploading}
+        accept=".pdf,.doc,.docx,.txt,.csv,.md,.xls,.xlsx,.ppt,.pptx,.odt"
       />
 
       {file && (

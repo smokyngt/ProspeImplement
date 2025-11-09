@@ -2,49 +2,54 @@ import React, { useMemo, useState } from 'react';
 import CreateRoleModal from './create-role.orga';
 import AlertSuccess from '@/components/ui/base/Alert/alertSuccess';
 import AlertError from '@/components/ui/base/Alert/alertError';
-import {
-  useRoles,
-  useCreateRole,
-  useDeleteRole,
-  type RoleScope,
-  type AssistantScope,
-} from './hooks/roleStore';
+import { useRoles, type Role, type RoleScope, type AssistantScope } from '../roles/hooks/useRoles';
 
 const RoleManagementTable: React.FC = () => {
+  const roles = useRoles();
   const [searchTerm, setSearchTerm] = useState('');
   const [success, setSuccess] = useState<string | null>(null);
 
-  // ✅ React Query hooks
-  const { data, isLoading, error } = useRoles();
-  const roles = data?.items ?? [];
-  const createRole = useCreateRole();
-  const deleteRole = useDeleteRole();
+  // ✅ Hooks via le hook unique
+  const { data: rolesList = [], isLoading, error } = roles.useList();
+  const createRole = roles.useCreate();
+  const deleteRole = roles.useDelete();
 
+  // ✅ Filtrage mémorisé
   const filteredRoles = useMemo(
-    () => roles.filter((r) => r.name.toLowerCase().includes(searchTerm.toLowerCase())),
-    [roles, searchTerm]
+    () => rolesList.filter((role) => role.name.toLowerCase().includes(searchTerm.toLowerCase())),
+    [rolesList, searchTerm]
   );
 
+  // ✅ Handler pour créer un rôle
   const handleCreateRole = async (
     roleName: string,
     scopes: RoleScope[],
     assistants: Array<{ id: string; scopes: AssistantScope[] }>
   ) => {
     try {
-      await createRole.mutateAsync({ name: roleName, scopes, assistants });
+      await createRole.mutateAsync({
+        name: roleName,
+        scopes,
+        assistants,
+      });
       setSuccess('Role created successfully!');
       setTimeout(() => setSuccess(null), 3000);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to create role:', err);
     }
   };
 
+  // ✅ Handler pour supprimer un rôle
   const handleDeleteRole = async (roleId: string) => {
+    if (!window.confirm('Are you sure you want to delete this role?')) {
+      return;
+    }
+
     try {
       await deleteRole.mutateAsync(roleId);
       setSuccess('Role deleted successfully!');
       setTimeout(() => setSuccess(null), 3000);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to delete role:', err);
     }
   };
@@ -59,7 +64,7 @@ const RoleManagementTable: React.FC = () => {
   };
 
   const mapScopesToPermissions = (scopes?: RoleScope[]): string[] => {
-    if (!scopes) return [];
+    if (!scopes || scopes.length === 0) return ['No permissions'];
 
     const permissionMap: Record<RoleScope, string> = {
       owner: 'Owner',
@@ -194,7 +199,7 @@ const RoleManagementTable: React.FC = () => {
                       </td>
                       <td className="px-6 py-1.5 text-end">
                         <button
-                          className="text-sm text-red-600 hover:text-red-800 disabled:opacity-50"
+                          className="text-sm text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
                           onClick={() => handleDeleteRole(role.id)}
                           disabled={deleteRole.isPending}
                         >
@@ -206,7 +211,7 @@ const RoleManagementTable: React.FC = () => {
                 ) : (
                   <tr>
                     <td colSpan={4} className="px-6 py-8 text-center text-sm text-gray-500">
-                      No roles found
+                      {searchTerm ? 'No roles match your search' : 'No roles found'}
                     </td>
                   </tr>
                 )}

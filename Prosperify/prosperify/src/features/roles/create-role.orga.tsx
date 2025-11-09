@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import type { AssistantScope, RoleScope } from '@/features/roles/types';
-import { prosperify } from '@/core/ProsperifyClient';
+import { useRoles } from '../roles/hooks/useRoles';
+import { useAssistants } from '@/features/assistant/hook/useAssistants';
+import type { AssistantScope, RoleScope } from '../roles/types/types';
 
 interface CreateRoleModalProps {
   onCreateRole: (
@@ -13,22 +13,18 @@ interface CreateRoleModalProps {
 
 const CreateRoleModal: React.FC<CreateRoleModalProps> = ({ onCreateRole }) => {
   const closeModalRef = useRef<HTMLButtonElement>(null);
+  const roles = useRoles();
+  const assistants = useAssistants();
 
+  // ✅ États locaux
   const [roleName, setRoleName] = useState('');
   const [selectedScopes, setSelectedScopes] = useState<RoleScope[]>([]);
   const [selectedAssistants, setSelectedAssistants] = useState<
     Array<{ id: string; name: string; scopes: AssistantScope[] }>
   >([]);
 
-  // ✅ React Query pour charger les assistants
-  const { data: assistants = [], isLoading: assistantsLoading } = useQuery({
-    queryKey: ['assistants', 'list'],
-    queryFn: async () => {
-      const response = await prosperify.assistants.postV1AssistantsList(); // ✅ updated: direct SDK call
-      return (response.data?.assistants ?? []) as Array<{ id: string; name: string }>;
-    },
-    staleTime: 5 * 60 * 1000,
-  });
+  // ✅ Charger les assistants via le hook unique
+  const { data: assistantsList = [], isLoading: assistantsLoading } = assistants.useList();
 
   const scopeOptions: Array<{ label: string; value: RoleScope }> = [
     { label: 'Manage Organization', value: 'organization' },
@@ -184,11 +180,11 @@ const CreateRoleModal: React.FC<CreateRoleModalProps> = ({ onCreateRole }) => {
                   <div className="text-center py-4">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
                   </div>
-                ) : assistants.length === 0 ? (
+                ) : assistantsList.length === 0 ? (
                   <p className="text-sm text-gray-500">No assistants available</p>
                 ) : (
                   <div className="space-y-3">
-                    {assistants.map((assistant: any) => {
+                    {assistantsList.map((assistant) => {
                       const isSelected = selectedAssistants.find((a) => a.id === assistant.id);
 
                       return (

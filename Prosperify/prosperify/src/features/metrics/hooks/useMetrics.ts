@@ -20,11 +20,12 @@ const metricsKeys = {
 
 async function fetchMetrics(params: MetricsListParams = {}) {
   const response = await prosperify.metrics.postV1MetricsList(params); // ✅ updated: direct SDK call
+  const data = response.data as any;
   return {
-    metrics: response.data?.metrics ?? [],
-    total: response.data?.total ?? 0,
-    limit: response.data?.limit ?? params.limit ?? 0,
-    offset: response.data?.offset ?? params.offset ?? 0,
+    metrics: data?.metrics ?? [],
+    total: data?.total ?? 0,
+    limit: data?.limit ?? params.limit ?? 0,
+    offset: data?.offset ?? params.offset ?? 0,
     eventMessage: response.eventMessage,
   };
 }
@@ -48,7 +49,8 @@ export function useMetric(id: string) {
     queryKey: metricsKeys.detail(id),
     queryFn: async () => {
       const response = await prosperify.metrics.getV1Metrics(id); // ✅ updated: direct SDK call
-      return response.data?.metric ?? null;
+      const data = response.data as any;
+      return data?.metric ?? null;
     },
     enabled: Boolean(id),
     staleTime: 5 * 60 * 1000,

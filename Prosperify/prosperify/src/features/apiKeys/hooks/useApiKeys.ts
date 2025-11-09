@@ -17,6 +17,21 @@ export type {
   ApiKeyMutationPayload,
 } from '@/features/apiKeys/types';
 
+// ✅ Interface pour la réponse de l'API
+interface ApiKeysListResponse {
+  apiKeys: ApiKey[];
+  total?: number;
+  hasMore?: boolean;
+}
+
+interface ApiKeyDetailResponse {
+  apiKey: ApiKey;
+}
+
+interface ApiKeyCreateResponse {
+  apiKey: ApiKey;
+}
+
 export const apiKeyKeys = {
   all: ['apiKeys'] as const,
   list: (params: ApiKeyListParams = {}) =>
@@ -25,18 +40,22 @@ export const apiKeyKeys = {
 };
 
 /**
- * Récupère la liste des clés API en respectant le pattern de `useAssistants`.
+ * Récupère la liste des clés API.
  * @param params Filtres de pagination/tri.
  */
 export function useApiKeys(params: ApiKeyListParams = {}) {
   return useQuery({
     queryKey: apiKeyKeys.list(params),
     queryFn: async () => {
-      const response = await prosperify.apiKeys.postV1KeysList(params); // ✅ updated: direct SDK call
+      const response = await prosperify.apiKeys.postV1KeysList(params);
+      
+      // ✅ Extraction type-safe
+      const data = response?.data as unknown as ApiKeysListResponse;
+      const apiKeys = Array.isArray(data?.apiKeys) ? data.apiKeys : [];
+
       return {
-        items: (response.data?.apiKeys ?? []) as ApiKey[],
-        total: response.data?.total ?? response.data?.apiKeys?.length ?? 0,
-        eventMessage: response.eventMessage,
+        items: apiKeys,
+        total: data?.total ?? apiKeys.length,
       };
     },
     staleTime: 5 * 60 * 1000,
@@ -53,8 +72,11 @@ export function useApiKey(id: string, enabled: boolean = true) {
   return useQuery({
     queryKey: apiKeyKeys.detail(id),
     queryFn: async () => {
-      const response = await prosperify.apiKeys.getV1Keys(id); // ✅ updated: direct SDK call
-      return (response.data?.apiKey ?? null) as ApiKey | null;
+      const response = await prosperify.apiKeys.getV1Keys(id);
+      
+      // ✅ Extraction type-safe
+      const data = response?.data as unknown as ApiKeyDetailResponse;
+      return data?.apiKey ?? null;
     },
     enabled: Boolean(id) && enabled,
     staleTime: 5 * 60 * 1000,
@@ -69,11 +91,17 @@ export function useCreateApiKey() {
 
   return useMutation({
     mutationFn: async (payload: ApiKeyMutationPayload) => {
-      const response = await prosperify.apiKeys.postV1KeysNew(payload); // ✅ updated: direct SDK call
-      if (!response.data?.apiKey) {
-        throw new Error('Prosperify API did not return the created API key.');
+      const response = await prosperify.apiKeys.postV1KeysNew(payload);
+      
+      // ✅ Extraction type-safe
+      const data = response?.data as unknown as ApiKeyCreateResponse;
+      const apiKey = data?.apiKey;
+
+      if (!apiKey) {
+        throw new Error('API did not return the created API key.');
       }
-      return response.data.apiKey as ApiKey;
+
+      return apiKey;
     },
     onSuccess: (createdKey) => {
       queryClient.invalidateQueries({ queryKey: apiKeyKeys.all });
@@ -90,7 +118,7 @@ export function useDeleteApiKey() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      await prosperify.apiKeys.deleteV1Keys(id); // ✅ updated: direct SDK call
+      await prosperify.apiKeys.deleteV1Keys(id);
       return id;
     },
     onSuccess: (deletedId) => {

@@ -1,10 +1,9 @@
-import React, { useState, useMemo } from "react";
-import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { prosperify } from "@/core/ProsperifyClient";
-import AlertError from "@/components/ui/base/Alert/alertError";
+import React, { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
+import { useAssistants } from '../hook/useAssistants';
+import AlertError from '@/components/ui/base/Alert/alertError';
 
-interface Assistant {
+interface AssistantWithUI {
   id: string;
   name: string;
   description?: string;
@@ -15,84 +14,75 @@ interface Assistant {
 }
 
 const AssistantsList: React.FC = () => {
-  const [searchQuery, setSearchQuery] = useState("");
+  const assistants = useAssistants();
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // ✅ UN SEUL APPEL via le hook
+  const { data, isLoading, error } = assistants.useList();
+  const assistantsList = data?.assistants ?? [];
 
   // ---------------------------------------------------------------
   // 🧩 Helpers
   // ---------------------------------------------------------------
   const getInitials = (name: string) =>
     name
-      .split(" ")
+      .split(' ')
       .map((word) => word[0])
-      .join("")
+      .join('')
       .toUpperCase()
       .slice(0, 2);
 
   const getRandomGradient = () => {
     const gradients = [
-      { gradient: "from-blue-400 to-blue-300", color: "bg-blue-600" },
-      { gradient: "from-yellow-400 to-yellow-300", color: "bg-yellow-500" },
-      { gradient: "from-red-400 to-red-300", color: "bg-red-500" },
-      { gradient: "from-green-400 to-green-300", color: "bg-green-500" },
-      { gradient: "from-purple-400 to-purple-300", color: "bg-purple-500" },
-      { gradient: "from-pink-400 to-pink-300", color: "bg-pink-500" },
+      { gradient: 'from-blue-400 to-blue-300', color: 'bg-blue-600' },
+      { gradient: 'from-yellow-400 to-yellow-300', color: 'bg-yellow-500' },
+      { gradient: 'from-red-400 to-red-300', color: 'bg-red-500' },
+      { gradient: 'from-green-400 to-green-300', color: 'bg-green-500' },
+      { gradient: 'from-purple-400 to-purple-300', color: 'bg-purple-500' },
+      { gradient: 'from-pink-400 to-pink-300', color: 'bg-pink-500' },
     ];
     return gradients[Math.floor(Math.random() * gradients.length)];
   };
 
   // ---------------------------------------------------------------
-  // 📥 React Query pour charger les assistants
+  // 🎨 Transformation avec styles
   // ---------------------------------------------------------------
-  const { data: assistants = [], isLoading, error } = useQuery({
-    queryKey: ['assistants'],
-    queryFn: async () => {
-      const res = await prosperify.assistants.postV1AssistantsList({
-        page: 1,
-        limit: 100,
-        order: "desc",
-        retry: false,   
-      });
-
-      const assistantsList = res?.data?.assistants || [];
-
-      return assistantsList.map((assistant: any) => {
-        const { gradient, color } = getRandomGradient();
-        return {
-          id: assistant.id,
-          name: assistant.name,
-          description: assistant.description || "",
-          createdAt: assistant.createdAt,
-          initials: getInitials(assistant.name),
-          gradient,
-          color,
-        };
-      });
-    },
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 30 * 60 * 1000, // 30 minutes
-  });
+  const assistantsWithUI: AssistantWithUI[] = useMemo(() => {
+    return assistantsList.map((assistant) => {
+      const { gradient, color } = getRandomGradient();
+      return {
+        id: assistant.id,
+        name: assistant.name,
+        description: assistant.description || '',
+        createdAt: assistant.createdAt,
+        initials: getInitials(assistant.name),
+        gradient,
+        color,
+      };
+    });
+  }, [assistantsList]);
 
   // ---------------------------------------------------------------
-  // 🔍 Filtrage en fonction de la recherche
+  // 🔍 Filtrage par recherche
   // ---------------------------------------------------------------
   const filteredAssistants = useMemo(() => {
-    if (!searchQuery.trim()) return assistants;
-    return assistants.filter((assistant: Assistant) =>
+    if (!searchQuery.trim()) return assistantsWithUI;
+    return assistantsWithUI.filter((assistant) =>
       assistant.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [searchQuery, assistants]);
+  }, [searchQuery, assistantsWithUI]);
 
   // ---------------------------------------------------------------
-  // 🎨 Rendu du composant
+  // 🎨 Rendu
   // ---------------------------------------------------------------
   return (
     <div>
       {error && (
         <div className="mb-4">
-          <AlertError 
-            message={(error as Error).message || "Erreur lors du chargement des assistants."} 
-            onClose={() => {}} 
-            description="" 
+          <AlertError
+            message={(error as Error).message || 'Erreur lors du chargement des assistants.'}
+            onClose={() => {}}
+            description=""
           />
         </div>
       )}
@@ -136,7 +126,7 @@ const AssistantsList: React.FC = () => {
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 w-3/4">
           {filteredAssistants.length > 0 ? (
-            filteredAssistants.map((assistant: Assistant) => (
+            filteredAssistants.map((assistant) => (
               <Link
                 key={assistant.id}
                 to={`/assistant/${assistant.id}/`}
@@ -163,9 +153,7 @@ const AssistantsList: React.FC = () => {
           ) : (
             <div className="col-span-full text-center py-10">
               <p className="text-gray-500 text-sm">
-                {searchQuery
-                  ? "Aucun assistant trouvé."
-                  : "Aucun assistant. Créez-en un !"}
+                {searchQuery ? 'Aucun assistant trouvé.' : 'Aucun assistant. Créez-en un !'}
               </p>
             </div>
           )}

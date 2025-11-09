@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
-import  { useUpdateUser } from '../../hooks/useUsers';
+import { useUpdateUser } from '../../hooks/useUsers';
 import { User, Mail, Palette, Globe } from 'lucide-react';
+import type { UserSummary } from '@/features/user/types/types';
 
 const ProfileContent: React.FC = () => {
   const { data: currentUser, isLoading } = useCurrentUser();
@@ -38,15 +39,15 @@ const ProfileContent: React.FC = () => {
           name: formData.name,
           email: formData.email,
           preferences: {
-            theme: formData.theme,
+            theme: formData.theme === 'auto' ? 'light' : formData.theme, // fallback sécurité
             language: formData.language,
           },
         },
       });
       setIsEditing(false);
-      alert('✅ Profile updated successfully!');
+      alert('✅ Profil mis à jour avec succès !');
     } catch (error) {
-      alert('❌ Failed to update profile');
+      alert('❌ Échec de la mise à jour du profil');
       console.error(error);
     }
   };
@@ -71,14 +72,22 @@ const ProfileContent: React.FC = () => {
     );
   }
 
+  if (!currentUser) {
+    return (
+      <div className="text-center text-gray-500 py-8">
+        Aucun utilisateur connecté.
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Informations du profil</h3>
+          <h3 className="text-lg font-semibold text-gray-900">Profil utilisateur</h3>
           <p className="text-sm text-gray-500 mt-1">
-            Gérez vos informations personnelles et vos préférences
+            Gérez vos informations personnelles et vos préférences.
           </p>
         </div>
         {!isEditing ? (
@@ -117,7 +126,7 @@ const ProfileContent: React.FC = () => {
         <div>
           <h4 className="font-semibold text-gray-900">{formData.name || 'Utilisateur'}</h4>
           <p className="text-sm text-gray-500">{formData.email}</p>
-          {currentUser?.verified && (
+          {currentUser.verified && (
             <span className="inline-flex items-center px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full mt-1">
               ✓ Vérifié
             </span>
@@ -127,7 +136,7 @@ const ProfileContent: React.FC = () => {
 
       {/* Form Fields */}
       <div className="space-y-4">
-        {/* Name */}
+        {/* Nom complet */}
         <div>
           <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
             <User className="size-4" />
@@ -139,7 +148,6 @@ const ProfileContent: React.FC = () => {
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             disabled={!isEditing}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
-            placeholder="Votre nom complet"
           />
         </div>
 
@@ -155,11 +163,10 @@ const ProfileContent: React.FC = () => {
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             disabled={!isEditing}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
-            placeholder="votre@email.com"
           />
         </div>
 
-        {/* Theme */}
+        {/* Thème */}
         <div>
           <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
             <Palette className="size-4" />
@@ -167,7 +174,9 @@ const ProfileContent: React.FC = () => {
           </label>
           <select
             value={formData.theme}
-            onChange={(e) => setFormData({ ...formData, theme: e.target.value as 'light' | 'dark' | 'auto' })}
+            onChange={(e) =>
+              setFormData({ ...formData, theme: e.target.value as 'light' | 'dark' | 'auto' })
+            }
             disabled={!isEditing}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-500"
           >
@@ -177,7 +186,7 @@ const ProfileContent: React.FC = () => {
           </select>
         </div>
 
-        {/* Language */}
+        {/* Langue */}
         <div>
           <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
             <Globe className="size-4" />
@@ -202,27 +211,24 @@ const ProfileContent: React.FC = () => {
           <div>
             <p className="text-gray-500">Date de création</p>
             <p className="font-medium text-gray-900">
-              {currentUser?.createdAt
-                ? new Date(currentUser.createdAt).toLocaleDateString('fr-FR')
+              {currentUser['createdAt']
+                ? new Date(currentUser['createdAt']).toLocaleDateString('fr-FR')
                 : 'N/A'}
             </p>
           </div>
           <div>
             <p className="text-gray-500">Dernière connexion</p>
             <p className="font-medium text-gray-900">
-              {currentUser?.lastLoginAt
-                ? new Date(currentUser.lastLoginAt).toLocaleDateString('fr-FR')
+              {currentUser['lastLoginAt']
+                ? new Date(currentUser['lastLoginAt']).toLocaleDateString('fr-FR')
                 : 'Jamais'}
             </p>
           </div>
           <div>
             <p className="text-gray-500">Rôles</p>
             <div className="flex flex-wrap gap-1 mt-1">
-              {currentUser?.roles?.map((role: string, i: number) => (
-                <span
-                  key={i}
-                  className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full"
-                >
+              {currentUser.roles.map((role: string, i: number) => (
+                <span key={i} className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">
                   {role}
                 </span>
               ))}
@@ -234,4 +240,4 @@ const ProfileContent: React.FC = () => {
   );
 };
 
-export default ProfileContent; 
+export default ProfileContent;

@@ -1,9 +1,11 @@
-export type Lang = 'en' | 'fr';
+import type { EventMessages, ErrorMessages } from './types';
 
-// Consolidated event messages collected from generated SDK services
-const eventMessages: Record<Lang, Record<string, string>> = {
+/**
+ * Messages d'événements consolidés (succès)
+ */
+export const eventMessages: EventMessages = {
   en: {
-    // Api Keys
+    // API Keys
     'api_key.created': 'API key created successfully.',
 
     // Auth
@@ -37,68 +39,86 @@ const eventMessages: Record<Lang, Record<string, string>> = {
     'metrics.listed': 'Metrics listed successfully.',
     'metric.retrieved': 'Metric retrieved successfully.',
 
-    // API generic / domain events (assistants, files, folders, threads, uploads, invitations, logs)
+    // Assistants
     'api.assistant.created': 'Assistant created successfully.',
     'assistant.created': 'Assistant created successfully.',
+
+    // Files
     'files.listed': 'Files listed successfully.',
     'file.deleted': 'File deleted successfully.',
     'file.retrieved': 'File retrieved successfully.',
+
+    // Folders
     'folders.listed': 'Folders listed successfully.',
     'folder.created': 'Folder created successfully.',
+
+    // Threads
     'thread.created': 'Thread created successfully.',
+
+    // Uploads
     'uploads.documents.uploaded': 'Documents uploaded successfully.',
-    // fallback: any other codes will be returned as-is
   },
+
   fr: {
-    // Api Keys
+    // API Keys
     'api_key.created': 'Clé API créée avec succès.',
 
     // Auth
     'auth.sso.authorization.url.generated': "URL d'autorisation SSO générée.",
-    'auth.sso.authorization.successful': "Autorisation SSO réussie.",
-    'auth.email.verified': "E-mail vérifié avec succès.",
-    'auth.verification.email.sent': "E-mail de vérification envoyé.",
-    'auth.password.reset.successful': "Réinitialisation du mot de passe réussie.",
-    'auth.token.refreshed': "Jeton rafraîchi avec succès.",
-    'auth.token.revoked': "Jeton révoqué avec succès.",
+    'auth.sso.authorization.successful': 'Autorisation SSO réussie.',
+    'auth.email.verified': 'E-mail vérifié avec succès.',
+    'auth.verification.email.sent': 'E-mail de vérification envoyé.',
+    'auth.password.reset.successful': 'Réinitialisation du mot de passe réussie.',
+    'auth.token.refreshed': 'Jeton rafraîchi avec succès.',
+    'auth.token.revoked': 'Jeton révoqué avec succès.',
 
     // Users
-    'user.created': "Utilisateur créé avec succès.",
-    'user.authenticated': "Utilisateur authentifié avec succès.",
-    'user.updated': "Utilisateur mis à jour avec succès.",
-    'user.deleted': "Utilisateur supprimé avec succès.",
-    'user.retrieved': "Utilisateur récupéré avec succès.",
+    'user.created': 'Utilisateur créé avec succès.',
+    'user.authenticated': 'Utilisateur authentifié avec succès.',
+    'user.updated': 'Utilisateur mis à jour avec succès.',
+    'user.deleted': 'Utilisateur supprimé avec succès.',
+    'user.retrieved': 'Utilisateur récupéré avec succès.',
     'user.role.added': "Rôle ajouté à l'utilisateur.",
     'user.role.removed': "Rôle retiré à l'utilisateur.",
-    'users.listed': "Liste des utilisateurs récupérée.",
+    'users.listed': 'Liste des utilisateurs récupérée.',
     'user.scopes.retrieved': "Périmètres de l'utilisateur récupérés.",
 
     // Roles
-    'role.created': "Rôle créé avec succès.",
-    'role.deleted': "Rôle supprimé avec succès.",
-    'role.updated': "Rôle mis à jour avec succès.",
-    'role.retrieved': "Rôle récupéré avec succès.",
-    'roles.listed': "Liste des rôles récupérée.",
+    'role.created': 'Rôle créé avec succès.',
+    'role.deleted': 'Rôle supprimé avec succès.',
+    'role.updated': 'Rôle mis à jour avec succès.',
+    'role.retrieved': 'Rôle récupéré avec succès.',
+    'roles.listed': 'Liste des rôles récupérée.',
 
     // Metrics
-    'metrics.listed': "Métriques listées avec succès.",
-    'metric.retrieved': "Métrique récupérée avec succès.",
+    'metrics.listed': 'Métriques listées avec succès.',
+    'metric.retrieved': 'Métrique récupérée avec succès.',
 
-    // Domain events
-    'api.assistant.created': "Assistant créé avec succès.",
-    'assistant.created': "Assistant créé avec succès.",
-    'files.listed': "Fichiers listés avec succès.",
-    'file.deleted': "Fichier supprimé avec succès.",
-    'file.retrieved': "Fichier récupéré avec succès.",
-    'folders.listed': "Dossiers listés avec succès.",
-    'folder.created': "Dossier créé avec succès.",
-    'thread.created': "Conversation créée avec succès.",
-    'uploads.documents.uploaded': "Documents téléversés avec succès.",
+    // Assistants
+    'api.assistant.created': 'Assistant créé avec succès.',
+    'assistant.created': 'Assistant créé avec succès.',
+
+    // Files
+    'files.listed': 'Fichiers listés avec succès.',
+    'file.deleted': 'Fichier supprimé avec succès.',
+    'file.retrieved': 'Fichier récupéré avec succès.',
+
+    // Folders
+    'folders.listed': 'Dossiers listés avec succès.',
+    'folder.created': 'Dossier créé avec succès.',
+
+    // Threads
+    'thread.created': 'Conversation créée avec succès.',
+
+    // Uploads
+    'uploads.documents.uploaded': 'Documents téléversés avec succès.',
   },
 };
 
-// Consolidated HTTP / API error messages used across services
-const errorMessages: Record<Lang, Record<string, string>> = {
+/**
+ * Messages d'erreur HTTP consolidés
+ */
+export const errorMessages: ErrorMessages = {
   en: {
     '400': 'Bad Request - Validation Error.',
     '401': 'Authentication Error - Please login or provide valid credentials.',
@@ -113,21 +133,8 @@ const errorMessages: Record<Lang, Record<string, string>> = {
     '401': "Erreur d'authentification - Veuillez vous connecter ou fournir des identifiants valides.",
     '403': "Erreur d'autorisation - Accès refusé.",
     '404': "Introuvable - La ressource demandée n'existe pas.",
-    '409': "Conflit - La ressource existe déjà ou conflit détecté.",
-    '422': "Entité non traitable - Entrée invalide ou type de fichier non supporté.",
+    '409': 'Conflit - La ressource existe déjà ou conflit détecté.',
+    '422': 'Entité non traitable - Entrée invalide ou type de fichier non supporté.',
     '500': "Erreur serveur - Une erreur interne s'est produite.",
   },
 };
-
-export function getEventMessage(code?: string, lang: Lang = 'en'): string | undefined {
-  if (!code) return undefined;
-  return eventMessages[lang][code] ?? code;
-}
-
-export function getErrorMessage(code?: number | string, lang: Lang = 'en'): string | undefined {
-  if (code == null) return undefined;
-  const key = String(code);
-  return errorMessages[lang][key] ?? `Unknown error (${key})`;
-}
-
-export default { eventMessages, errorMessages, getEventMessage, getErrorMessage };

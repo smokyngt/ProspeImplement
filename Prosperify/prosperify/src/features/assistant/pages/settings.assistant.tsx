@@ -6,7 +6,7 @@ import DeleteContent from '../components/settings/delete.assistant';
 import AlertError from '@/components/ui/base/Alert/alertError';
 
 const SettingsAssistant: React.FC = () => {
-  // ✅ Récupération de l'ID de l'assistant depuis l'URL
+  // ✅ Récupération de l'ID depuis l'URL
   const { id: assistantId } = useParams<{ id: string }>();
 
   const [selectedOption, setSelectedOption] = useState('Basique');
@@ -39,7 +39,7 @@ const SettingsAssistant: React.FC = () => {
       <div className="p-4">
         {error && (
           <div className="fixed top-4 right-4 z-50">
-            <AlertError message={error} onClose={() => setError(null)} description={''} />
+            <AlertError message={error} onClose={() => setError(null)} description="" />
           </div>
         )}
 
@@ -60,18 +60,22 @@ const SettingsAssistant: React.FC = () => {
         </div>
 
         <div className="p-4 border border-gray-200 rounded-lg bg-white transition-all duration-200 w-1/2">
-          {/* ✅ Passage de l'assistantId aux sous-composants */}
+          {/* ✅ Passage de la vraie variable assistantId (sans guillemets) */}
           {selectedOption === 'Informations Générales' && (
-            <GeneralInfoContent assistantId={"assistantId"} />
+            <GeneralInfoContent assistantId={assistantId} />
           )}
-          {selectedOption === 'Basique' && <SettingsContent assistantId={"assistantId"} />}
-          {selectedOption === 'Delete' && <DeleteContent assistantId={"assistantId"} />}
+          {selectedOption === 'Basique' && (
+            <SettingsContent assistantId={assistantId} />
+          )}
+          {selectedOption === 'Delete' && (
+            <DeleteContent assistantId={assistantId} />
+          )}
         </div>
 
-        {/* Simulate error button for demonstration */}
+        {/* Simulate error button (à retirer en production) */}
         <button
           onClick={() => setError('An error occurred while loading the content.')}
-          className="mt-4 py-2 px-4 bg-red-600 text-white rounded"
+          className="mt-4 py-2 px-4 bg-red-600 text-white rounded hover:bg-red-700"
         >
           Simulate Error
         </button>
